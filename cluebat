@@ -1,0 +1,31 @@
+#!/bin/sh
+# Very noddy Clue build script.
+# 
+# © 2008 David Given.
+# Clue is licensed under the Revised BSD open source license. To get the
+# full license text, see the README file.
+#
+# $Id$
+# $HeadURL$
+# $LastChangedDate$
+
+set -e
+
+infile="$1"
+if [ "$infile" = "" -o "$infile" = "-h" -o "$infile" = "--help" ]; then 
+	echo "cluebat: very simple clue compiler"
+	echo "Syntax: cluebat <inputfile.c> <outputfile.luac>"
+	echo "A .lua file will also be written. outfile may be omitted if you"
+	echo "want the output file to be written to inputfile.luac."
+	exit 1
+fi 
+
+outfile="$2"
+if [ "$outfile" = "" ]; then
+	outfile="$infile"
+fi
+outfile="${outfile%.*}"
+
+# If you add -v to here, you get stupendous amounts of debug info.
+./bin/clue -nostdinc -Isrc/libc/include "$infile" > "$outfile".lua
+./bin/luacg -o "$outfile".luac "$outfile".lua
