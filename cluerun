@@ -1,0 +1,90 @@
+#!/usr/bin/lua
+-- Clue runtime loader
+--
+-- © 2008 David Given.
+-- Clue is licensed under the Revised BSD open source license. To get the
+-- full license text, see the README file.
+--
+-- $Id$
+-- $HeadURL$
+-- $LastChangedDate$
+
+-- You may need to alter these two lines if LuaJit expects to see modules
+-- somewhere other than the default location. (For example, if you use the
+-- Debian packages for Lua, but install LuaJit from source.)
+
+package.path = package.path ..
+	";/usr/share/lua/5.1/?.lua;/usr/share/lua/5.1/?/init.lua;" ..
+	"/usr/lib/lua/5.1/?.lua;/usr/lib/lua/5.1/?/init.lua"
+	
+package.cpath = package.cpath ..
+	";/usr/lib/lua/5.1/?.so;/usr/lib/lua/5.1/?.so;/usr/lib/lua/5.1/loadall.so"
+
+-- This line allows us to find the clue modules. Don't change.
+
+package.path = package.path ..
+	";src/lua/?.lua"
+
+require "socket"
+require "clue.crt"
+require "clue.libc"
+
+local math_floor = math.floor
+
+local infile = (...)
+if (not infile) or (infile == "-h") or (infile == "--help") then
+	print("cluerun: clue runtime engine")
+	print("Syntax: cluerun <inputfile.luac> <args...>")
+	print("    or: luajit cluerun <inputfile.luac> <args...>");
+	print("Arguments after the .luac file get passed in to the program's")
+	print("main() function.")
+	os.exit(1)
+end
+	
+-- C runtime library
+
+ptrread = clue.crt.ptrread
+ptrwrite = clue.crt.ptrwrite
+ptroffset = clue.crt.ptroffset
+ptrtostring = clue.crt.ptrtostring
+stackread = clue.crt.stackread
+stackwrite = clue.crt.stackwrite
+stackoffset = clue.crt.stackoffset
+
+newptr = clue.crt.newptr
+newstring = clue.crt.newstring
+newstring0 = clue.crt.newstring0
+
+-- Import the standard library.
+
+for k, v in pairs(clue.libc) do
+	_G[k] = v
+end
+
+-- Load the binary.
+
+local chunk, e = loadfile(infile)
+if e then
+	print("Load error: "..e)
+	os.exit(0)
+end
+
+chunk()
+
+-- Run it.
+
+do
+	-- (Construct argv list first.)
+	
+	local rawargs = {...}
+	local cargs = newptr();
+	for i, v in ipairs(rawargs) do
+		v = newstring0(v)
+		ptrwrite(cargs, i-1, v)
+	end
+	ptrwrite(cargs, #rawargs, nil)
+	
+	local result = _main({}, 0, #rawargs, cargs)
+	os.exit(result)
+end
+

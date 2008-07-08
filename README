@@ -1,0 +1,246 @@
+                                   CLUE v0.1
+                                   =========
+
+                            (C) 2008 David Given
+                                 2008-07-06
+
+
+INTRODUCTION
+============
+
+Clue is an experimental C compiler for Lua. It compiles, eventually, ANSI
+C programs into Lua bytecode which may be run on a standard Lua interpreter
+or using Mike Pall's LuaJIT interpreter.
+
+Clue is EXPERIMENTAL and UNFINISHED. It is not suitable for any kind of
+production use. There are a number of C language features that are not
+implemented yet, and it produces rather bad code. However, it will compile
+a large number of non-trivial programs.
+
+
+INSTALLATION
+============
+
+Installation is unfortunately rather involved and will only work on Unix-like
+systems. I develop on Linux. You *may* be able to make it all work on Cygwin
+but you're on your own. Sorry.
+
+1. Install Lua 5.1 with LuaSocket and BitLib.
+
+2. Fetch sparse 0.4.1 from here:
+
+     http://www.kernel.org/pub/software/devel/sparse/
+
+   Apply the supplied sparse.patch file, compile it, and install it.    
+
+3. Edit the supplied pmfile and change the section at the top to point
+   at where you installed sparse's headers and libraries.
+   
+4. Do:
+
+     ./pm
+     
+   Clue will then build the compiler and the modified Lua interpreter that's
+   used as an assembler.
+   
+Clue is currently not designed to be installed anywhere; it should be run from
+the place where you built it. I did warn you it was experimental...
+
+
+USAGE
+=====
+
+You may compile a C program as follows:
+
+    ./cluebat test/helloworld.c output.luac
+   
+This will read in the source file, compile it to output.lua, assemble it, and
+write out the bytecode file as output.luac. Note: the .lua file should *only*
+be used with the Lua assembler shipped with Clue --- it contains non-standard
+extensions that won't work with a stock interpreter. However, the .luac
+bytecode files will work anywhere.
+
+Once compiled, you may run the bytecode files as follows:
+
+    ./cluerun output.luac
+    
+
+USAGE WITH LUAJIT
+=================
+
+Clue-compiled programs work fine with LuaJit, giving fairly massive speed
+improvements. You do this as follows:
+
+    luajit -O ./cluerun output.luac
+    
+You may need to adjust the first few lines of the cluerun script to allow
+LuaJit to see the same packages that Lua can.
+
+
+BENCHMARKING
+============
+
+Clue is complete enough to run a number of benchmarks. These are located
+in the test directory.
+
+Most of the benchmarks are taken from the Computer Language Benchmark
+Game (neé the Great Computer Language Shootout), located here:
+
+    http://shootout.alioth.debian.org/
+    
+The CLBG benchmarks can be run en mass using the supplied run-benchmarks
+script. It will run each benchmark using gcc, clue via a Lua interpreter,
+and clue via LuaJIT (if you have it). (Note that the script does *not*
+use the same number of iterations as the CLBG uses, as I'm not getting
+any younger.)
+
+Also supplied is a version of the very elderly Whetstone benchmark. This
+can be run as a normal program.
+
+See README.benchmarks for the results I get on my machine.
+
+
+WRITING PROGRAMS WITH CLUE
+==========================
+
+Clue supports standard ANSI C (C89, some C99, some bugs). Unfortunately,
+most programmers don't! There are a number of places where Clue behaves
+very differently to normal C compilers, 
+
+- you may not cast any kind of pointer to a number, or vice
+  versa (except for the special case of constant 0, which may be
+  cast to any kind of pointer).
+  
+- you may not cast function pointers to object pointers or vice
+  versa.
+ 
+- accessing memory via the wrong kind of pointer is not supported. This
+  means you can't do this:
+  
+  {
+    long i = 1;
+    return *(int*)i;
+  }
+  
+  You *can* use unions to store two objects of different types at the same
+  memory location --- but accessing the wrong one will probably produce a
+  runtime error.
+  
+- sizeof(char) == sizeof(int) == sizeof(long) == sizeof(void*) ==
+  sizeof(void(*)()) == 1.
+
+- trying to operate on uninitialised memory will most likely produce a
+  runtime error (as it gets initialised to the Lua value nil, which you
+  can't do things like arithmetic operations on). 
+
+- the libc is *very* terse. I implemented only those functions necessary
+  to make the benchmarks work.
+
+Violating any of these will sometimes produce a compile-time error but
+mostly you'll get a really, really strange run-time error.
+
+
+BUGS
+====
+
+Hahahaha! Hahahahahaha! Haha!
+
+Okay, there are some bugs. Did I mention this was experimental?
+
+The ones I've actually noticed include, but are not limited to:
+
+Compiler bugs:
+
+- inline doesn't work.
+
+- Multiple declarations of items doesn't work. (This is a sparse bug.)
+
+- Various compiler features aren't implemented yet, like switch or varargs.
+
+Libc bugs:
+
+- stdio can only read or write text; this causes clbg-mandelbrot to
+  produce invalid data when run using clue.
+  
+- printf can't handle the l modifier and produces a run-time error
+  if it sees one.
+
+There are others. Oh, yes, there are others.
+  
+
+TODO
+====
+
+There are a number of ways to take Clue further.
+
+- Target Lua bytecode directly, rather than producing Lua source and then
+  compiling it and postprocessing it. This will prevent a lot of useless
+  bytecode being produced, so making things faster.
+   
+- Throw away and rewrite the code generator to use a proper register
+  allocator, which will produce tighter, far more efficient code.
+  
+- Change the way pointer arithmetic is done; currently, all pointer
+  dereferenced are proxied via a function and at least two table lookups.
+  This is not necessary, but requires the code generator change to make
+  work.
+
+- Finish the language coverage. There are a number of C language features
+  that I haven't gotten around to doing (like switch).  
+
+
+LICENSING
+=========
+
+Different parts of the supplied source are covered by different licenses.
+
+src/lua-goto contains a copy of the Lua 5.1.3 source code patched with a
+tweaked version of Luiz Henrique de Figueiredo's GOTO patch. This is used
+solely for assembling clue's output and not for running any code. These are
+covered by the MIT license. See the end of src/lua-goto/lua.h for the text.
+
+test/clbg-*.c are very slightly tweaked (mostly changing %ld to %d in
+format strings) versions of the Computer Language Benchmark Game
+benchmarks. See http://shootout.alioth.debian.org. These are covered by the
+Revised BSD license. See
+http://shootout.alioth.debian.org/gp4/miscfile.php?file=license&title=revised%20BSD%20license
+for the text.
+
+test/whetstone.c is a hacked copy of one of the million or so Whetstone
+variations dating from the 1980s. It is, I believe, public domain. If anyone
+has more information, please get in touch.
+
+Practically everything else was written by me, David Given, and is covered by
+the three-clause BSD license. The text follows:
+
+Copyright (c) 2008, David Given
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+    * Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in
+      the documentation and/or other materials provided with the distribution.
+    * Neither the name of the <ORGANIZATION> nor the names of its contributors
+      may be used to endorse or promote products derived from this software 
+      without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE 
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF 
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+# $Id$
+# $HeadURL$
+# $LastChangedDate$

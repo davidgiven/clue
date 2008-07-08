@@ -1,0 +1,57 @@
+#!/usr/bin/lua
+-- Clue build script
+--
+-- © 2006 David Given.
+-- Clue is licensed under the Revised BSD open source license. To get the
+-- full license text, see the README file.
+--
+-- $Id$
+-- $HeadURL$
+-- $LastChangedDate$
+
+require "socket"
+
+local benchdata = {
+	{"clbg-binary-trees",              11},
+	{"clbg-mandelbrot",                1000},
+	{"clbg-partialsums",               250000},
+	{"clbg-fannkuch",                  8},
+	{"clbg-recursive",                 8},
+	{"clbg-n-body",                    20000},
+	{"clbg-nsieve",                    8}
+}
+
+local function exec(s)
+	local i = os.execute(s)
+	if (i ~= 0) then
+		os.exit(0)
+	end
+end
+
+local function pn(n)
+	return string.format("% 8.3f", n)
+end
+
+print("", "", "", "time", "comparison factor")
+for i = 1, #benchdata do
+	local name, arg = unpack(benchdata[i])
+	print(name..":")
+	exec("gcc test/"..name..".c -o /tmp/benchmark -Os -lm")
+
+	local t = socket.gettime()
+	exec("/tmp/benchmark "..arg.." > /dev/null")
+	local gcctime = socket.gettime() - t
+	print("gcc:", pn(gcctime), pn(1.0))
+	
+	exec("./cluebat test/"..name..".c /tmp/benchmark")
+	
+	t = socket.gettime()
+	exec("lua ./cluerun /tmp/benchmark.luac "..arg.." > /dev/null")
+	local luatime = socket.gettime() - t
+	print("lua:", pn(luatime), pn(luatime / gcctime))
+	
+	t = socket.gettime()
+	exec("luajit -O ./cluerun /tmp/benchmark.luac "..arg.." > /dev/null")
+	local luajittime = socket.gettime() - t
+	print("luajit:", pn(luajittime), pn(luajittime / gcctime))
+end
