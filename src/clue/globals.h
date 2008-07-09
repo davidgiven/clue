@@ -39,10 +39,12 @@
 
 enum
 {
-	TYPE_ANY = 1,
+	TYPE_NONE = 0,
+	TYPE_ANY,
 	TYPE_INT,
 	TYPE_FLOAT,
 	TYPE_PTR,
+	TYPE_FNPTR,
 	TYPE_FN,
 };
 
@@ -59,12 +61,20 @@ DECLARE_PTR_LIST(pinfo_list, struct pinfo);
 
 struct hardreg
 {
-	struct pinfo_list* contains;
 	unsigned busy : 16;
 	unsigned number : 8;
 	unsigned used : 1;
 	unsigned touched : 1;
 	unsigned dying : 1;
+};
+
+/* Represents a reference to a hardreg or register pair. */
+
+struct hardregref
+{
+	int type;
+	struct hardreg* simple;
+	struct hardreg* base;    /* Valid if type == TYPE_PTR */
 };
 
 /* pinfos store the backend-specific data about a pseudo: notably,
@@ -77,8 +87,8 @@ struct pinfo
 {
 	pseudo_t pseudo;
 	int type;
-	struct hardreg* reg;
-	struct hardreg* wire;
+	struct hardregref reg;
+	struct hardregref wire;
 	unsigned int stackoffset;
 	unsigned dying : 1;
 	unsigned stacked : 1;
@@ -111,14 +121,22 @@ extern void EC(const char* format, ...);
 
 extern void init_register_allocator(void);
 extern const char* show_hardreg(struct hardreg* reg);
+extern const char* show_hardregref(struct hardregref* hrf);
 extern void reset_hardregs(void);
 extern void untouch_hardregs(void);
-extern struct hardreg* allocate_hardreg(struct bb_state* state);
-extern void put_pseudo_in_hardreg(struct bb_state* state, pseudo_t pseudo,
-		struct hardreg* reg);
-extern void mark_pseudo_as_dead(struct bb_state* state, pseudo_t pseudo);
-extern void kill_dying_hardreg(struct hardreg *reg);
-extern void kill_dying_pseudos(struct bb_state* state);
+extern struct hardreg* allocate_hardreg(void);
+
+extern void ref_hardregref(struct hardregref* hrf);
+extern void unref_hardregref(struct hardregref* hrf);
+extern void find_hardregref(struct hardregref* hrf, pseudo_t pseudo);
+extern void create_hardregref(struct hardregref* hrf, pseudo_t pseudo);
+extern void clone_ptr_hardregref(struct hardregref* src, struct hardregref* hrf,
+		pseudo_t pseudo);
+
+extern void put_pseudo_in_hardregref(pseudo_t pseudo, struct hardregref* hrf);
+
+extern void mark_pseudo_as_dying(pseudo_t pseudo);
+extern void kill_dying_pseudos(void);
 extern struct hardreg* find_source_hardreg_for_pseudo(struct bb_state* state,
 		pseudo_t pseudo);
 extern struct storage_hash* find_storagehash_for_pseudo(
@@ -136,7 +154,7 @@ extern const char* show_value(struct expression* expr);
 extern void reset_pinfo(void);
 extern struct pinfo* lookup_pinfo_of_pseudo(pseudo_t pseudo);
 
-extern void set_base_type_of_pseudo(pseudo_t pseudo, int type);
+extern int lookup_base_type_of_pseudo(pseudo_t pseudo);
 extern int get_base_type_of_pseudo(pseudo_t pseudo);
 extern int get_base_type_of_symbol(struct symbol* symbol);
 

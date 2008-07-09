@@ -28,7 +28,7 @@ static int emit_array_initializer(const char* luaname, int pos, struct expressio
 			for (i = 0; i < s->length; i++)
 			{
 				int c = s->data[i];
-				E("ptrwrite(%s, %d, %d)\n", luaname, pos, c);
+				E("%s[%d] = %d\n", luaname, pos+1, c);
 				pos++;
 			}
 			break;
@@ -48,14 +48,14 @@ static int emit_array_initializer(const char* luaname, int pos, struct expressio
 
 		case EXPR_VALUE:
 		{
-			E("ptrwrite(%s, %d, %lld)\n", luaname, pos, expr->value);
+			E("%s[%d] = %lld\n", luaname, pos+1, expr->value);
 			pos++;
 			break;
 		}
 
 		case EXPR_FVALUE:
 		{
-			E("ptrwrite(%s, %d, %.15llg)\n", luaname, pos, expr->fvalue);
+			E("%s[%d] = %.15llg\n", luaname, pos+1, expr->fvalue);
 			pos++;
 			break;
 		}
@@ -70,7 +70,7 @@ static int emit_array_initializer(const char* luaname, int pos, struct expressio
 		case EXPR_SYMBOL:
 		{
 			declare_symbol(expr->symbol);
-			E("ptrwrite(%s, %d, %s)\n", luaname, pos, show_symbol_mangled(expr->symbol));
+			E("%s[%d] = %s\n", luaname, pos+1, show_symbol_mangled(expr->symbol));
 			break;
 		}
 

@@ -16,6 +16,7 @@ static void wire_up_bb_list(struct basic_block_list *list,
 		unsigned long generation);
 
 struct hardreg hardregs[NUM_REGS];
+static struct pinfo_list* dying_pinfos = NULL;
 
 enum
 {
@@ -38,6 +39,38 @@ const char* show_hardreg(struct hardreg* reg)
 	return aprintf("H%d", reg->number);
 }
 
+/* Generate a string name of a hardregref. */
+
+const char* show_hardregref(struct hardregref* hrf)
+{
+	static const char* typenames[] = {
+		[TYPE_NONE] = "none",
+		[TYPE_ANY] = "any",
+		[TYPE_INT] = "int",
+		[TYPE_FLOAT] = "float",
+		[TYPE_PTR] = "ptr",
+		[TYPE_FNPTR] = "fnptr"
+	};
+
+	const char* s = typenames[hrf->type];
+	assert(s);
+
+	switch (hrf->type)
+	{
+		case TYPE_NONE:
+			return "[none]";
+
+		case TYPE_PTR:
+			return aprintf("[%s:H%d/%d+H%d/%d]", s,
+					hrf->base->number, hrf->base->busy,
+					hrf->simple->number, hrf->simple->busy);
+
+		default:
+			return aprintf("[%s:H%d/%d]", s,
+					hrf->simple->number, hrf->simple->busy);
+	}
+}
+
 /* Reset all hardregs to empty. */
 
 void reset_hardregs(void)
@@ -47,7 +80,6 @@ void reset_hardregs(void)
 	{
 		struct hardreg* reg = &hardregs[i];
 
-		reg->contains = NULL;
 		reg->busy = reg->dying = reg->used = 0;
 	}
 }
@@ -67,15 +99,16 @@ void untouch_hardregs(void)
 
 /* Allocate an unused hardreg. */
 
-struct hardreg* allocate_hardreg(struct bb_state* state)
+struct hardreg* allocate_hardreg(void)
 {
 	int i;
 	for (i = 0; i < NUM_REGS; i++)
 	{
 		struct hardreg* reg = &hardregs[i];
 
-		if (!reg->contains)
+		if (reg->busy == 0)
 		{
+			reg->busy = 1;
 			reg->touched = 1;
 			return reg;
 		}
@@ -83,94 +116,154 @@ struct hardreg* allocate_hardreg(struct bb_state* state)
 	return NULL;
 }
 
-/* Marks a hardreg as containing a particular pseudo. */
+/* Find the hardregref containing a particular pseudo. */
 
-void put_pseudo_in_hardreg(struct bb_state *state, pseudo_t pseudo,
-		struct hardreg* reg)
+void find_hardregref(struct hardregref* hrf, pseudo_t pseudo)
 {
-	EC("-- pseudo %s assigned to hardreg %s\n", show_pseudo(pseudo),
-			show_hardreg(reg));
+	assert(pseudo->type == PSEUDO_REG);
 
 	struct pinfo* pinfo = lookup_pinfo_of_pseudo(pseudo);
-	assert(!pinfo->reg);
+	assert(pinfo->reg.type);
 
-	pinfo->reg = reg;
+	*hrf = pinfo->reg;
+}
 
-	add_ptr_list(&reg->contains, pinfo);
+/* Creates a hardregref and binds it to a particular pseudo. */
+
+void create_hardregref(struct hardregref* hrf, pseudo_t pseudo)
+{
+	assert(pseudo->type == PSEUDO_REG);
+	struct pinfo* pinfo = lookup_pinfo_of_pseudo(pseudo);
+
+	if (pinfo->reg.type == TYPE_NONE)
+	{
+		/* This pseudo has not been placed in a register. */
+
+		hrf->type = pinfo->type;
+		hrf->simple = allocate_hardreg();
+		if (hrf->type == TYPE_PTR)
+			hrf->base = allocate_hardreg();
+		else
+			hrf->base = NULL;
+		put_pseudo_in_hardregref(pseudo, hrf);
+	}
+	else
+	{
+		*hrf = pinfo->reg;
+		ref_hardregref(hrf);
+	}
+
+}
+
+/* Creates a new hardregref that shares the .base register with another
+ * one. */
+
+void clone_ptr_hardregref(struct hardregref* src, struct hardregref* hrf,
+		pseudo_t pseudo)
+{
+	assert(pseudo->type == PSEUDO_REG);
+	assert(src->type == TYPE_PTR);
+
+	struct pinfo* pinfo = lookup_pinfo_of_pseudo(pseudo);
+	if (pinfo->reg.type == TYPE_NONE)
+	{
+		hrf->type = pinfo->type;
+		hrf->simple = allocate_hardreg();
+		hrf->base = src->base;
+		hrf->base->busy++;
+		put_pseudo_in_hardregref(pseudo, hrf);
+	}
+	else
+	{
+		*hrf = pinfo->reg;
+		ref_hardregref(hrf);
+	}
+}
+
+/* Reference and unreference a hardregref. */
+
+void ref_hardregref(struct hardregref* hrf)
+{
+	switch (hrf->type)
+	{
+		case TYPE_NONE:
+			break;
+
+		case TYPE_PTR:
+			hrf->base->busy++;
+			/* fall through */
+
+		default:
+			hrf->simple->busy++;
+	}
+}
+
+void unref_hardregref(struct hardregref* hrf)
+{
+	switch (hrf->type)
+	{
+		case TYPE_NONE:
+			break;
+
+		case TYPE_PTR:
+			assert(hrf->base->busy > 0);
+			hrf->base->busy--;
+			if (hrf->base->busy == 0)
+				EC("-- hardreg %s now unused\n", show_hardreg(hrf->base));
+			/* fall through */
+
+		default:
+			assert(hrf->simple->busy > 0);
+			hrf->simple->busy--;
+			if (hrf->simple->busy == 0)
+				EC("-- hardreg %s now unused\n", show_hardreg(hrf->simple));
+	}
+}
+
+/* Marks a pseudo as being stored in a particular hardregref. */
+
+void put_pseudo_in_hardregref(pseudo_t pseudo, struct hardregref* hrf)
+{
+	EC("-- pseudo %s assigned to hardregref %s\n", show_pseudo(pseudo),
+			show_hardregref(hrf));
+
+	struct pinfo* pinfo = lookup_pinfo_of_pseudo(pseudo);
+	assert(!pinfo->reg.type);
+
+	pinfo->reg = *hrf;
 }
 
 /* Marks a pseudo as moribund, so the next call to kill_moribund_pseudos()
  * will kill it, causing the register it's stored in to be freed.
  */
 
-void mark_pseudo_as_dead(struct bb_state* state, pseudo_t pseudo)
-{
-	struct hardreg* reg = find_source_hardreg_for_pseudo(state, pseudo);
-	if (!reg)
-		return;
-
-	if (!reg->contains)
-		return;
-
-	struct pinfo* pinfo;
-	FOR_EACH_PTR(reg->contains, pinfo)
-	{
-		if (pinfo->pseudo == pseudo)
-		{
-			EC("-- pseudo %s in hardreg %s is dying\n",
-					show_pseudo(pseudo), show_hardreg(reg));
-			pinfo->dying = 1;
-			reg->dying = 1;
-		}
-	}
-	END_FOR_EACH_PTR(pinfo);
-}
-
-/* Removes any dying pseudos from a specific hardreg. */
-
-void kill_dying_hardreg(struct hardreg *reg)
-{
-	if (reg->dying && reg->contains)
-	{
-		struct pinfo* pinfo;
-		FOR_EACH_PTR(reg->contains, pinfo)
-		{
-			if (pinfo->dying)
-			{
-				EC("-- pseudo %s has died and is no longer in hardreg %s\n",
-						show_pseudo(pinfo->pseudo), show_hardreg(reg));
-
-				pinfo->dying = 0;
-				pinfo->reg = NULL;
-			}
-		}
-		END_FOR_EACH_PTR(pinfo);
-
-		free_ptr_list(&reg->contains);
-		reg->dying = 0;
-	}
-}
-
-/* Finally kill any pseudos that have been dying. */
-
-void kill_dying_pseudos(struct bb_state* state)
-{
-	int i;
-	for (i = 0; i < NUM_REGS; i++)
-		kill_dying_hardreg(&hardregs[i]);
-}
-
-/* For a pseudo that's going to be read from, finds the hardreg it's stored
- * in. If the pseudo isn't in a hardreg, return NULL. */
-
-struct hardreg* find_source_hardreg_for_pseudo(struct bb_state* state,
-		pseudo_t pseudo)
+void mark_pseudo_as_dying(pseudo_t pseudo)
 {
 	struct pinfo* pinfo = lookup_pinfo_of_pseudo(pseudo);
-	if (pinfo->reg)
-		return pinfo->reg;
+	pinfo->dying = 1;
 
-	return NULL;
+	EC("-- pseudo %s in hardregref %s is dying\n",
+			show_pseudo(pseudo), show_hardregref(&pinfo->reg));
+
+	add_ptr_list(&dying_pinfos, pinfo);
+}
+
+/* Finally kills any dying pseudos. */
+
+void kill_dying_pseudos(void)
+{
+	struct pinfo* pinfo;
+	FOR_EACH_PTR(dying_pinfos, pinfo)
+	{
+		assert(pinfo->dying);
+
+		EC("-- pseudo %s has died and is no longer in hardregref %s\n",
+				show_pseudo(pinfo->pseudo), show_hardregref(&pinfo->reg));
+		unref_hardregref(&pinfo->reg);
+	}
+	END_FOR_EACH_PTR(pinfo);
+
+	free_ptr_list(&dying_pinfos);
 }
 
 /* In order for basic blocks to talk to each other, we need to wire together
@@ -191,11 +284,13 @@ static void wire_up_storage_hash_list(struct storage_hash_list* list)
 		pseudo_t pseudo = entry->pseudo;
 		struct pinfo* pinfo = lookup_pinfo_of_pseudo(pseudo);
 
-		if ((!pinfo->wire) && (!pinfo->stacked))
+		if ((!pinfo->wire.type) && (!pinfo->stacked))
 		{
 			switch (storage->type)
 			{
+#if 0
 				case REG_REG:
+					assert(0);
 					/* The front end wants this to be in a specific register. */
 					pinfo->wire = &hardregs[storage->regno];
 					printf("-- pseudo %s ==> hardreg %s (%p)\n",
@@ -204,15 +299,23 @@ static void wire_up_storage_hash_list(struct storage_hash_list* list)
 
 					put_pseudo_in_hardreg(NULL, entry->pseudo, pinfo->wire);
 					break;
+#endif
 
 				case REG_UDEF:
 					/* The front end doesn't care where this is. */
+
+					create_hardregref(&pinfo->wire, pseudo);
+					printf("-- pseudo %s ==> hardregref %s\n",
+							show_pseudo(entry->pseudo),
+							show_hardregref(&pinfo->wire));
+#if 0
 					pinfo->wire = allocate_hardreg(NULL);
 					printf("-- pseudo %s ==> hardreg %s (%p)\n",
 							show_pseudo(entry->pseudo),
 							show_hardreg(pinfo->wire), storage);
 
 					put_pseudo_in_hardreg(NULL, entry->pseudo, pinfo->wire);
+#endif
 					break;
 
 				default:
