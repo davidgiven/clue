@@ -26,9 +26,16 @@ int get_base_type_of_symbol(struct symbol* s)
 	if (s->type == SYM_ARRAY)
 		return TYPE_PTR;
 	if (s->type == SYM_PTR)
+	{
+#if 0
+		s = s->ctype.base_type;
+		if (s->type == SYM_FN)
+			return TYPE_FNPTR;
+#endif
 		return TYPE_PTR;
+	}
 	if (s->type == SYM_FN)
-		return TYPE_PTR;
+		return TYPE_FNPTR;
 	if (s == &int_type)
 		return TYPE_INT;
 	if (s == &fp_type)
@@ -49,6 +56,7 @@ static int get_base_type_of_instruction(struct instruction* insn)
 	if (!insn)
 	{
 		printf("failed to get type of instruction!\n");
+		assert(0);
 		return TYPE_ANY;
 	}
 
@@ -89,6 +97,9 @@ static int get_base_type_of_instruction(struct instruction* insn)
 				return TYPE_PTR;
 			return type1;
 		}
+
+		case OP_SEL:
+			return get_base_type_of_pseudo(insn->src2);
 
 	}
 
@@ -174,12 +185,8 @@ static int get_base_type_of_instruction(struct instruction* insn)
 	return get_base_type_of_pseudo(p);
 }
 
-int get_base_type_of_pseudo(pseudo_t pseudo)
+int lookup_base_type_of_pseudo(pseudo_t pseudo)
 {
-	struct pinfo* pinfo = lookup_pinfo_of_pseudo(pseudo);
-	if (pinfo->type)
-		return pinfo->type;
-
 	switch (pseudo->type)
 	{
 		case PSEUDO_VOID:
@@ -188,8 +195,7 @@ int get_base_type_of_pseudo(pseudo_t pseudo)
 
 		case PSEUDO_REG:
 		case PSEUDO_PHI:
-			pinfo->type = get_base_type_of_instruction(pseudo->def);
-			break;
+			return get_base_type_of_instruction(pseudo->def);
 
 		case PSEUDO_ARG:
 		{
@@ -213,22 +219,25 @@ int get_base_type_of_pseudo(pseudo_t pseudo)
 
 			/* Now extract the base type from the argument. */
 
-			pinfo->type = get_base_type_of_symbol(type);
-			break;
+			return get_base_type_of_symbol(type);
 		}
 
 		case PSEUDO_SYM:
-			pinfo->type = TYPE_PTR;
-			break;
+			return TYPE_PTR;
 
 		case PSEUDO_VAL:
-			pinfo->type = TYPE_INT;
+			return TYPE_INT;
 			break;
 
 		default:
 			printf("unknown pseudo type %d!\n", pseudo->type);
 			assert(0);
 	}
+}
 
+int get_base_type_of_pseudo(pseudo_t pseudo)
+{
+	struct pinfo* pinfo = lookup_pinfo_of_pseudo(pseudo);
 	return pinfo->type;
 }
+

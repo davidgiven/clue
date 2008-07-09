@@ -31,7 +31,7 @@ static int compare_cb(const void* lhs, const void* rhs)
 static void reset_cb(void* user)
 {
 	struct pinfo* pinfo = user;
-	pinfo->reg = NULL;
+	pinfo->reg.type = TYPE_NONE;
 }
 
 void reset_pinfo(void)
@@ -51,6 +51,8 @@ struct pinfo* lookup_pinfo_of_pseudo(pseudo_t pseudo)
 	pinfo = malloc(sizeof(struct pinfo));
 	memset(pinfo, 0, sizeof(struct pinfo));
 	pinfo->pseudo = pseudo;
+	pinfo->type = lookup_base_type_of_pseudo(pseudo);
+
 
 	avl_insert(&pinfostore, compare_cb, pinfo, NULL);
 	return pinfo;

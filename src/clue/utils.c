@@ -22,67 +22,6 @@ struct zprintnode
 static struct zprintnode* zfirst = NULL;
 static struct zprintnode* zlast = NULL;
 
-const char* show_simple_pseudo(struct bb_state* state, pseudo_t pseudo)
-{
-	switch (pseudo->type)
-	{
-		case PSEUDO_VAL:
-			return aprintf("%lld", pseudo->value);
-			break;
-
-		case PSEUDO_SYM:
-			return show_symbol_mangled(pseudo->sym);
-			if (pseudo->sym->ctype.modifiers & MOD_STATIC)
-				return aprintf("_%s", show_pseudo(pseudo));
-			/* fall through */
-
-		case PSEUDO_ARG:
-		{
-			struct pinfo* pinfo = lookup_pinfo_of_pseudo(pseudo);
-			assert(pinfo->stacked);
-
-			return aprintf("stackread(sp, %d)", pinfo->stackoffset);
-		}
-
-		case PSEUDO_REG:
-		{
-			struct pinfo* pinfo = lookup_pinfo_of_pseudo(pseudo);
-
-			if (pinfo->reg)
-			{
-				return aprintf("(pseudo %s is in %s)",
-						show_pseudo(pseudo), show_hardreg(pinfo->reg));
-			}
-
-			return aprintf("(pseudo %s is not in a register?)", show_pseudo(pseudo));
-		}
-
-#if 0
-		case PSEUDO_ARG:
-		case PSEUDO_REG:
-			def = pseudo->def;
-			if (def && def->opcode == OP_SETVAL)
-			{
-				output_insn(state, "movl $<%s>,%s", show_pseudo(def->target),
-						hardreg->name);
-				break;
-			}
-			src = find_pseudo_storage(state, pseudo, hardreg);
-			if (!src)
-				break;
-			if (src->flags & TAG_DEAD)
-				mark_reg_dead(state, pseudo, hardreg);
-			output_insn(state, "mov.%d %s,%s", 32, show_memop(src->storage),
-					hardreg->name);
-			break;
-#endif
-
-		default:
-			return aprintf("(unknown simple pseudo type %d %s)",
-					pseudo->type, show_pseudo(pseudo));
-	}
-}
-
 const char* show_value(struct expression* expr)
 {
 	switch (expr->type)

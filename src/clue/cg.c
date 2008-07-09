@@ -61,376 +61,357 @@ void EC(const char* format, ...)
 	}
 }
 
-/* For a pseudo that's going to be read from, finds the hardreg it's stored
- * in. If the pseudo isn't in a hardreg, allocate one, and then load the
- * pseudo into it. */
+/* Copy a hardreg. */
 
-static struct hardreg* load_pseudo_into_hardreg(struct bb_state* state,
-		pseudo_t pseudo)
+static void cg_copy_hardreg(struct hardreg* src, struct hardreg* dest)
 {
-	struct hardreg* reg = find_source_hardreg_for_pseudo(state, pseudo);
-	if (reg)
-		return reg;
-
-	reg = allocate_hardreg(state);
-
-	EC("-- loading pseudo %s into hardreg %s\n",
-			show_pseudo(pseudo), show_hardreg(reg));
-	E("%s = %s\n", show_hardreg(reg), show_simple_pseudo(state, pseudo));
-
-	put_pseudo_in_hardreg(state, pseudo, reg);
-	return reg;
+	if (src != dest)
+		E("%s = %s\n", show_hardreg(dest), show_hardreg(src));
 }
 
-/* For a psuedo that's going to be written to, finds the hardreg it's stored
- * in. If the pseudo isn't in a hardreg, allocate one. */
+/* Unpack a packed pointer into a register pair. */
 
-static struct hardreg* assign_pseudo_to_hardreg(struct bb_state* state,
-		pseudo_t pseudo)
+static void cg_unpack_pointer(struct hardregref* hrf)
 {
-	struct hardreg* reg = find_source_hardreg_for_pseudo(state, pseudo);
-	if (reg)
-		return reg;
-
-	reg = allocate_hardreg(state);
-
-	EC("-- assigning pseudo %s to hardreg %s\n",
-			show_pseudo(pseudo), show_hardreg(reg));
-
-	put_pseudo_in_hardreg(state, pseudo, reg);
-	return reg;
-}
-
-/* Creates an operand structure describing a particular input pseudo. */
-
-static struct operand* get_source_operand(struct bb_state* state, pseudo_t pseudo)
-{
-	struct operand* op = malloc(sizeof(struct operand));
-	memset(op, 0, sizeof(struct operand));
-
-	struct pinfo* pinfo = lookup_pinfo_of_pseudo(pseudo);
-	switch (pseudo->type)
-	{
-		case PSEUDO_VOID:
-			return NULL;
-
-		case PSEUDO_VAL:
-			op->type = OP_VAL;
-			op->value = pseudo->value;
-			break;
-
-		case PSEUDO_ARG:
-		{
-			assert(pinfo->stacked);
-
-			op->type = OP_STACK;
-			op->stackoffset = pinfo->stackoffset;
-			break;
-		}
-
-		case PSEUDO_REG:
-		{
-			/* This pseudo is in (or would like to be in) a registr. */
-
-			struct hardreg* reg = load_pseudo_into_hardreg(state, pseudo);
-			if (reg)
-			{
-				/* Yes, it's already there. */
-				op->type = OP_REG;
-				op->reg = reg;
-				reg->busy++;
-			}
-			else
-			{
-				/* It's not in a register yet, so load it. */
-				assert(0);
-			}
-			break;
-		}
-
-		case PSEUDO_SYM:
-		{
-			if (pinfo->stacked)
-			{
-			stacked:
-				op->type = OP_STACKI;
-				op->stackoffset = pinfo->stackoffset;
-				break;
-			}
-
-			struct symbol *sym = pseudo->sym;
-			if (!(sym->ctype.modifiers &
-					(MOD_EXTERN | MOD_TOPLEVEL | MOD_STATIC)))
-			{
-				/* This symbol lives on the stack. We assign them lazily. */
-
-				pinfo->stacked = 1;
-				pinfo->stackoffset = stacksize++;
-				goto stacked;
-			}
-
-			/* Otherwise, this must be a static symbol. */
-
-			op->type = OP_ADDR;
-			op->sym = pseudo->sym;
-
-			break;
-		}
-
-		default:
-			assert(0);
-	}
-
-	return op;
-}
-
-/* Creates an operand structure representing a particular output pseudo. */
-
-static struct operand* get_dest_operand(struct bb_state* state, pseudo_t pseudo)
-{
-	struct operand* op = malloc(sizeof(struct operand));
-	memset(op, 0, sizeof(struct operand));
-
-	switch (pseudo->type)
-	{
-		case PSEUDO_ARG:
-			assert(0);
-
-		case PSEUDO_REG:
-		{
-			/* This pseudo is in (or would like to be in) a register. */
-
-			struct hardreg* reg = assign_pseudo_to_hardreg(state, pseudo);
-			if (reg)
-			{
-				/* Yes, it's already there. */
-				op->type = OP_REG;
-				op->reg = reg;
-				reg->busy++;
-			}
-			else
-			{
-				/* No registers available? */
-				assert(0);
-			}
-			break;
-		}
-
-		default:
-			assert(0);
-			break;
-
-	}
-
-	return op;
-}
-
-/* Release an operand once we're finished with it. */
-
-static void release_operand(struct bb_state *state, struct operand *op)
-{
-	switch (op->type)
-	{
-		case OP_REG:
-			op->reg->busy--;
-			break;
-
-		case OP_ADDR:
-		case OP_MEM:
-			break;
-
-		default:
-			break;
-	}
-}
-
-/* Render a simple source operand. */
-
-static const char* render_simple_operand(struct operand* op)
-{
-	switch (op->type)
-	{
-		default:
-			return aprintf("(unknown operand type %d)", op->type);
-
-		case OP_REG:
-			return show_hardreg(op->reg);
-
-		case OP_VAL:
-			return aprintf("%lld", op->value);
-
-		case OP_MEM:
-		case OP_ADDR:
-			return show_symbol_mangled(op->sym);
-
-		case OP_STACK:
-			return aprintf("stackread(stack, fp, %d)", op->stackoffset);
-
-		case OP_STACKI:
-			return aprintf("stackoffset(stack, fp, %d)", op->stackoffset);
-	}
+	E("%s = %s[1]\n",
+			show_hardreg(hrf->base),
+			show_hardreg(hrf->simple));
+	E("%s = %s[2]\n",
+			show_hardreg(hrf->simple),
+			show_hardreg(hrf->simple));
 }
 
 /* Load data into memory. */
 
 static void generate_load(struct instruction *insn, struct bb_state *state)
 {
-	struct operand* src = get_dest_operand(state, insn->target);
-	struct operand* dest = get_source_operand(state, insn->src);
-	//struct operand* dest = get_address_operand(state, insn);
-	E("%s = ptrread(%s, %d)\n",
-			render_simple_operand(src),
-			render_simple_operand(dest),
+	struct hardregref address;
+	struct hardregref dest;
+
+	find_hardregref(&address, insn->src);
+	create_hardregref(&dest, insn->target);
+
+	assert(address.type == TYPE_PTR);
+	E("%s = %s[%s + %d]\n",
+			show_hardreg(dest.simple),
+			show_hardreg(address.base),
+			show_hardreg(address.simple),
 			insn->offset);
-	//output_insn(state, "mov.%d %s,%s", insn->size, reg_or_imm(state, insn->target), address(state, insn));
-	release_operand(state, src);
-	release_operand(state, dest);
+
+	if (dest.type == TYPE_PTR)
+		cg_unpack_pointer(&dest);
 }
 
 /* Store data into memory. */
 
 static void generate_store(struct instruction *insn, struct bb_state *state)
 {
-	struct operand* src = get_source_operand(state, insn->target);
-	struct operand* dest = get_source_operand(state, insn->src);
-	//struct operand* dest = get_address_operand(state, insn);
-	E("ptrwrite(%s, %d, %s)\n",
-			render_simple_operand(dest),
-			insn->offset,
-			render_simple_operand(src));
-	//output_insn(state, "mov.%d %s,%s", insn->size, reg_or_imm(state, insn->target), address(state, insn));
-	release_operand(state, src);
-	release_operand(state, dest);
+	struct hardregref address;
+	struct hardregref src;
+
+	find_hardregref(&address, insn->src);
+	find_hardregref(&src, insn->target);
+
+	assert(address.type == TYPE_PTR);
+	if (src.type == TYPE_PTR)
+		E("%s[%s + %d] = {%s, %s}\n",
+				show_hardreg(address.base),
+				show_hardreg(address.simple),
+				insn->offset,
+				show_hardreg(src.base),
+				show_hardreg(src.simple));
+	else
+		E("%s[%s + %d] = %s\n",
+				show_hardreg(address.base),
+				show_hardreg(address.simple),
+				insn->offset,
+				show_hardreg(src.simple));
 }
 
-/* Load a value into a register. */
+/* Load a pseudo into a register. */
+
+static void emit_load(struct hardregref* dest, pseudo_t pseudo)
+{
+	switch (pseudo->type)
+	{
+		case PSEUDO_VOID:
+			EC("-- ignoring --- void\n");
+			break;
+
+		case PSEUDO_VAL:
+			E("%s = %lld\n", show_hardreg(dest->simple),
+					pseudo->value);
+			break;
+
+		case PSEUDO_ARG:
+			E("%s = stack[fp + %d]\n",
+					show_hardreg(dest->simple),
+					pseudo->nr - 1);
+
+			if (dest->type == TYPE_PTR)
+				cg_unpack_pointer(dest);
+			break;
+
+		case PSEUDO_REG:
+		{
+			struct hardregref src;
+			create_hardregref(&src, pseudo);
+
+			E("%s = %s\n",
+					show_hardreg(dest->simple), show_hardreg(src.simple));
+			if (src.type == TYPE_PTR)
+				E("%s = %s\n",
+						show_hardreg(dest->base), show_hardreg(src.base));
+			break;
+		}
+		case PSEUDO_SYM:
+		{
+			struct pinfo* pinfo = lookup_pinfo_of_pseudo(pseudo);
+
+			if (pinfo->stacked)
+			{
+				/* This symbol is on the stack. */
+
+			stacked:
+				E("%s = stack\n", show_hardreg(dest->base));
+				E("%s = fp + %d\n", show_hardreg(dest->simple),
+						pinfo->stackoffset);
+			}
+			else
+			{
+				/* Check to see whether this symbol lives on the stack,
+				 * and if so lazily allocate it a slot.
+				 */
+				struct symbol *sym = pseudo->sym;
+				if (!(sym->ctype.modifiers &
+						(MOD_EXTERN | MOD_TOPLEVEL | MOD_STATIC)))
+				{
+					/* This symbol lives on the stack. We assign them lazily. */
+
+					int size = bits_to_bytes(sym->bit_size);
+					EC("-- allocating %d bytes on stack for %s\n", size,
+							show_symbol_mangled(sym));
+					pinfo->stacked = 1;
+					pinfo->stackoffset = stacksize;
+					stacksize += size;
+					goto stacked;
+				}
+
+				/* This symbol is a global. */
+
+				if (dest->type == TYPE_FNPTR)
+				{
+					E("%s = %s\n",
+							show_hardreg(dest->simple),
+							show_symbol_mangled(sym));
+				}
+				else
+				{
+					E("%s = %s\n",
+							show_hardreg(dest->base),
+							show_symbol_mangled(sym));
+					E("%s = 1\n",
+							show_hardreg(dest->simple));
+				}
+			}
+			break;
+		}
+
+		default:
+			assert(0);
+	}
+}
 
 static void generate_setval(struct instruction *insn, struct bb_state *state)
 {
-	struct operand* dest = get_dest_operand(state, insn->target);
+	struct hardregref dest;
+	create_hardregref(&dest, insn->target);
+
 	pseudo_t pseudo = insn->symbol;
 
 	if (pseudo)
-	{
-		struct operand* src = get_source_operand(state, pseudo);
-		E("%s = %s\n", render_simple_operand(dest), render_simple_operand(src));
-		release_operand(state, src);
-	}
+		emit_load(&dest, pseudo);
 	else
 	{
-		int t = get_base_type_of_symbol(insn->val->ctype);
-		const char* dests = render_simple_operand(dest);
-		const char* srcs = show_value(insn->val);
+		struct expression* expr = insn->val;
 
-		switch (t)
+		switch (dest.type)
 		{
 			case TYPE_PTR:
-				assert(insn->val->value == 0);
-				E("%s = nil\n", dests);
+				assert(expr->value == 0);
+				E("%s = nil\n", show_hardreg(dest.base));
 				break;
 
 			default:
-				E("%s = %s\n", dests, srcs);
-				break;
+			{
+				const char* dests = show_hardreg(dest.simple);
+
+				switch (expr->type)
+				{
+					case EXPR_VALUE:
+						E("%s = %lld\n", dests, expr->value);
+						break;
+
+					case EXPR_FVALUE:
+						E("%s = %llf\n", dests, expr->fvalue);
+						break;
+
+					default:
+						printf("(expression type %d)\n", expr->type);
+						assert(0);
+				}
+			}
 		}
 	}
-
-	release_operand(state, dest);
 }
 
 /* Cast one type to another. */
 
 static void generate_cast(struct instruction *insn, struct bb_state *state)
 {
-	struct operand* src = get_source_operand(state, insn->src);
-	struct operand* dest = get_dest_operand(state, insn->target);
+	struct hardregref src;
+	find_hardregref(&src, insn->src);
+	const char* srcs = show_hardreg(src.simple);
 
-	const char* srcs = render_simple_operand(src);
-	const char* dests = render_simple_operand(dest);
+	struct hardregref dest;
+	create_hardregref(&dest, insn->target);
+	const char* dests = show_hardreg(dest.simple);
 
-	int srctype = get_base_type_of_pseudo(insn->src);
-	int desttype = get_base_type_of_pseudo(insn->target);
+	EC("-- cast from %d to %d\n", src.type, dest.type);
 
-	EC("-- cast from %d to %d\n", srctype, desttype);
-
-	if ((srctype == TYPE_FLOAT) && (desttype == TYPE_INT))
+	if ((src.type == TYPE_FLOAT) && (dest.type == TYPE_INT))
 		E("%s = int(%s)\n", dests, srcs);
-	else if ((srctype == TYPE_INT) && (desttype == TYPE_FLOAT))
+	else if ((src.type == TYPE_INT) && (dest.type == TYPE_FLOAT))
 		E("%s = %s\n", dests, srcs);
-	else if (srctype == desttype)
+	else if (src.type == dest.type)
+	{
 		E("%s = %s\n", dests, srcs);
+		if (src.type == TYPE_PTR)
+			E("%s = %s\n", show_hardreg(dest.base), show_hardreg(src.base));
+	}
 	else
 	{
-		EC("!!!");
-//		sparse_error(insn->src->def->pos,
-//			     "this cast is not supported by clue");
+		sparse_error(insn->src->def->pos,
+			     "this cast is not supported by clue");
 	}
-
-	release_operand(state, src);
-	release_operand(state, dest);
 }
 
 /* Produce a simple 3op instruction. */
 
 static void generate_triop(struct instruction *insn, struct bb_state *state)
 {
-	struct operand* src1 = get_source_operand(state, insn->src1);
-	struct operand* src2 = get_source_operand(state, insn->src2);
-	struct operand* src3 = get_source_operand(state, insn->src3);
-	struct operand* dest = get_dest_operand(state, insn->target);
+	struct hardregref src1;
+	find_hardregref(&src1, insn->src1);
 
-	const char* src1s = render_simple_operand(src1);
-	const char* src2s = render_simple_operand(src2);
-	const char* src3s = render_simple_operand(src3);
-	const char* dests = render_simple_operand(dest);
+	struct hardregref src2;
+	find_hardregref(&src2, insn->src2);
+
+	struct hardregref src3;
+	find_hardregref(&src3, insn->src3);
+
+	struct hardregref dest;
+	create_hardregref(&dest, insn->target);
 
 	switch (insn->opcode)
 	{
 		case OP_SEL:
 		{
-			int ctype = get_base_type_of_pseudo(insn->src1);
-			E("if (%s ~= %s) then %s = %s else %s = %s end\n",
-					src1s,
-					(ctype == TYPE_PTR) ? "nil" :
-						"0",
-					dests, src2s, dests, src3s);
+			switch (src1.type)
+			{
+				case TYPE_PTR:
+					E("if %s then ", show_hardreg(src1.base));
+					break;
+
+				case TYPE_FNPTR:
+					E("if %s then ", show_hardreg(src1.simple));
+					break;
+
+				default:
+					E("if %s ~= 0 then ", show_hardreg(src1.simple));
+			}
+
+			switch (dest.type)
+			{
+				case TYPE_PTR:
+					E("%s = %s %s = %s else %s = %s %s = %s",
+							show_hardreg(dest.simple), show_hardreg(src2.simple),
+							show_hardreg(dest.base), show_hardreg(src2.base),
+							show_hardreg(dest.simple), show_hardreg(src3.simple),
+							show_hardreg(dest.base), show_hardreg(src3.base));
+					break;
+
+				default:
+					E("%s = %s else %s = %s",
+							show_hardreg(dest.simple), show_hardreg(src2.simple),
+							show_hardreg(dest.simple), show_hardreg(src3.simple));
+					break;
+			}
+
+			E(" end\n");
 			break;
 		}
-	}
 
-	release_operand(state, src1);
-	release_operand(state, src2);
-	release_operand(state, dest);
+		default:
+			assert(0);
+	}
 }
 
 /* Produce a simple 2op instruction. */
 
 static void generate_binop(struct instruction *insn, struct bb_state *state)
 {
-	struct operand* src1 = get_source_operand(state, insn->src1);
-	struct operand* src2 = get_source_operand(state, insn->src2);
-	struct operand* dest = get_dest_operand(state, insn->target);
+	struct hardregref src1;
+	struct hardregref src2;
 
-	int type1 = get_base_type_of_pseudo(insn->src1);
-	int type2 = get_base_type_of_pseudo(insn->src2);
+	find_hardregref(&src1, insn->src1);
+	find_hardregref(&src2, insn->src2);
 
-	const char* src1s = render_simple_operand(src1);
-	const char* src2s = render_simple_operand(src2);
-	const char* dests = render_simple_operand(dest);
+	const char* src1s = show_hardreg(src1.simple);
+	const char* src2s = show_hardreg(src2.simple);
 
-	EC("-- type1=%d, type2=%d, result=%d\n", type1, type2, get_base_type_of_pseudo(insn->target));
+	struct hardregref dest;
 
+	/* These instructions can operate on either pointers or integers, and
+	 * so need to be handled specially. */
 	switch (insn->opcode)
 	{
 		case OP_ADD:
-			if (type1 == TYPE_PTR)
-				E("%s = ptroffset(%s, %s)\n", dests, src1s, src2s);
-			else if (type2 == TYPE_PTR)
-				E("%s = ptroffset(%s, %s)\n", dests, src2s, src1s);
+			if (src1.type == TYPE_PTR)
+			{
+				clone_ptr_hardregref(&src1, &dest, insn->target);
+				cg_copy_hardreg(src1.base, dest.base);
+			}
+			else if (src2.type == TYPE_PTR)
+			{
+				clone_ptr_hardregref(&src2, &dest, insn->target);
+				cg_copy_hardreg(src2.base, dest.base);
+			}
 			else
-				E("%s = %s + %s\n", dests, src1s, src2s);
-			break;
+				create_hardregref(&dest, insn->target);
 
+			E("%s = %s + %s\n", show_hardreg(dest.simple), src1s, src2s);
+			return;
+
+		case OP_SUB:
+			if ((src1.type == TYPE_PTR) && (src2.type == TYPE_INT))
+				clone_ptr_hardregref(&src1, &dest, insn->target);
+			else
+				create_hardregref(&dest, insn->target);
+
+			E("%s = %s - %s\n", show_hardreg(dest.simple), src1s, src2s);
+			return;
+	}
+
+	/* Everything else operates on simple numbers only. */
+
+	assert(src1.type != TYPE_PTR);
+	assert(src2.type != TYPE_PTR);
+
+	create_hardregref(&dest, insn->target);
+	const char* dests = show_hardreg(dest.simple);
+
+	switch (insn->opcode)
+	{
 		case OP_MULU:
 		case OP_MULS:
 			E("%s = %s * %s\n", dests, src1s, src2s);
@@ -456,28 +437,9 @@ static void generate_binop(struct instruction *insn, struct bb_state *state)
 			E("%s = boolor(%s, %s)\n", dests, src1s, src2s);
 			break;
 
-		case OP_SUB:
-			if (type1 == TYPE_PTR)
-			{
-				if (type2 == TYPE_PTR)
-				{
-					/* Pointer difference. */
-
-					E("%s = ptrdiff(%s, %s)\n", dests, src1s, src2s);
-				}
-				else
-				{
-					assert(type2 == TYPE_INT);
-					E("%s = ptrsub(%s, %s)\n", dests, src1s, src2s);
-				}
-			}
-			else
-				E("%s = %s - %s\n", dests, src1s, src2s);
-			break;
-
 		case OP_DIVU:
 		case OP_DIVS:
-			if (type1 == TYPE_FLOAT)
+			if ((src1.type == TYPE_FLOAT) || (src2.type == TYPE_FLOAT))
 				E("%s = %s / %s\n", dests, src1s, src2s);
 			else
 				E("%s = int(%s / %s)\n", dests, src1s, src2s);
@@ -525,28 +487,20 @@ static void generate_binop(struct instruction *insn, struct bb_state *state)
 			E("%s = (%s ~= %s) and 1 or 0\n", dests, src1s, src2s);
 			break;
 	}
-
-	release_operand(state, src1);
-	release_operand(state, src2);
-	release_operand(state, dest);
 }
 
 /* Produce a simple 1op instruction. */
 
 static void generate_uniop(struct instruction *insn, struct bb_state *state)
 {
-	struct operand* src = get_source_operand(state, insn->src);
-	struct operand* dest = get_dest_operand(state, insn->target);
+	struct hardregref src;
+	struct hardregref dest;
 
-	if (!src)
-	{
-		EC("-- %s is void, omitting store to %s\n",
-				show_pseudo(insn->src), show_pseudo(insn->target));
-		return;
-	}
+	find_hardregref(&src, insn->src);
+	create_hardregref(&dest, insn->target);
 
-	const char* srcs = render_simple_operand(src);
-	const char* dests = render_simple_operand(dest);
+	const char* srcs = show_hardreg(src.simple);
+	const char* dests = show_hardreg(dest.simple);
 
 	switch (insn->opcode)
 	{
@@ -554,14 +508,18 @@ static void generate_uniop(struct instruction *insn, struct bb_state *state)
 			E("%s = -%s\n", dests, srcs);
 			break;
 
+#if 0
 		case OP_PHISOURCE:
 		case OP_COPY:
 			E("%s = %s\n", dests, srcs);
+			if (src.type == TYPE_PTR)
+				E("%s = %s\n", show_hardreg(src.base),
+						show_hardreg(dest.base));
 			break;
+#endif
+		default:
+			assert(0);
 	}
-
-	release_operand(state, src);
-	release_operand(state, dest);
 }
 
 /* Return from the function. */
@@ -571,9 +529,16 @@ static void generate_ret(struct instruction *insn, struct bb_state *state)
 	E("do return");
 	if (insn->src && (insn->src->type != PSEUDO_VOID))
 	{
-		struct operand* src = get_source_operand(state, insn->src);
-		E(" %s", render_simple_operand(src));
-		release_operand(state, src);
+		struct hardregref src;
+
+		find_hardregref(&src, insn->src);
+
+		if (src.type == TYPE_PTR)
+			E(" {%s, %s}",
+					show_hardreg(src.base),
+					show_hardreg(src.simple));
+		else
+			E(" %s", show_hardreg(src.simple));
 	}
 	E(" end\n");
 }
@@ -582,48 +547,39 @@ static void generate_ret(struct instruction *insn, struct bb_state *state)
 
 static void generate_call(struct instruction *insn, struct bb_state *state)
 {
-	struct operand* target = NULL;
-	struct operand* function = get_source_operand(state, insn->func);
-	struct operand* args[MAX_ARGS];
-
-	memset(args, 0, sizeof(args));
-
-	/* Collect operands for each argument. */
-
-	pseudo_t arg;
-	int arguments = 0;
-	FOR_EACH_PTR(insn->arguments, arg)
-	{
-		args[arguments] = get_source_operand(state, arg);
-		arguments++;
-	}
-	END_FOR_EACH_PTR(arg);
+	struct hardregref function;
+	find_hardregref(&function, insn->func);
 
 	/* Emit the instruction. */
 
+	struct hardregref target;
+	target.type = TYPE_NONE;
 	if (insn->target && (insn->target != VOID))
 	{
-		target = get_dest_operand(state, insn->target);
-		E("%s = ", render_simple_operand(target));
+		create_hardregref(&target, insn->target);
+		E("%s = ", show_hardreg(target.simple));
 	}
 
-	E("%s(stack, sp", render_simple_operand(function));
+	E("%s(stack, sp", show_hardreg(function.simple));
 
-	int i;
-	for (i = 0; i < arguments; i++)
+	pseudo_t arg;
+	FOR_EACH_PTR(insn->arguments, arg)
 	{
-		E(", %s", render_simple_operand(args[i]));
+		struct hardregref hrf;
+		find_hardregref(&hrf, arg);
+
+		if (hrf.type == TYPE_PTR)
+			E(", {%s, %s}", show_hardreg(hrf.base),
+					show_hardreg(hrf.simple));
+		else
+			E(", %s", show_hardreg(hrf.simple));
 	}
+	END_FOR_EACH_PTR(arg);
 
 	E(")\n");
 
-	/* Release all operands. */
-
-	if (target)
-		release_operand(state, target);
-	release_operand(state, function);
-	for (i = 0; i < arguments; i++)
-		release_operand(state, args[i]);
+	if (target.type == TYPE_PTR)
+		cg_unpack_pointer(&target);
 }
 
 /* Generate a branch, conditional or otherwise. */
@@ -632,17 +588,21 @@ static void generate_branch(struct instruction *insn, struct bb_state *state)
 {
 	if (insn->cond)
 	{
-		struct operand* cond = get_source_operand(state, insn->cond);
-		int ctype = get_base_type_of_pseudo(insn->cond);
+		struct hardregref hrf;
 
-		zprintf("if %s ~= %s then __GOTO = 0x%08x else __GOTO = 0x%08x end\n",
-				render_simple_operand(cond),
-				(ctype == TYPE_PTR) ? "nil" :
-					"0",
-				(unsigned) insn->bb_true,
-				(unsigned) insn->bb_false);
+		find_hardregref(&hrf, insn->cond);
+		switch (hrf.type)
+		{
+			case TYPE_PTR:
+				E("if %s then __GOTO = 0x%08x else __GOTO = 0x%08x end\n",
+						show_hardreg(hrf.base), insn->bb_true, insn->bb_false);
+				break;
 
-		release_operand(state, cond);
+			default:
+				E("if %s ~= 0 then __GOTO = 0x%08x else __GOTO = 0x%08x end\n",
+						show_hardreg(hrf.simple), insn->bb_true, insn->bb_false);
+				break;
+		}
 	}
 	else
 		zprintf("__GOTO = 0x%08x\n", insn->bb_true);
@@ -652,28 +612,25 @@ static void generate_branch(struct instruction *insn, struct bb_state *state)
 
 static void generate_phisrc(struct instruction *insn, struct bb_state *state)
 {
+#if 0
 	struct operand* src = get_source_operand(state, insn->phi_src);
 	if (!src)
 	{
 		EC("-- src is void, omitting instruction\n");
 		return;
 	}
+#endif
 
-	//assert(src->type == OP_REG);
-
-	EC("-- src = %s\n", show_pseudo(insn->phi_src));
-
-	int count = 0;
+//	int count = 0;
 	struct instruction* phi;
 	FOR_EACH_PTR(insn->phi_users, phi)
 	{
-		struct operand* dest = get_dest_operand(state, phi->target);
+		struct hardregref dest;
+		create_hardregref(&dest, phi->target);
 
-		zprintf("%s = %s\n", render_simple_operand(dest),
-				render_simple_operand(src));
+		emit_load(&dest, insn->phi_src);
 
-		release_operand(state, dest);
-		count++;
+//		count++;
 	}
 	END_FOR_EACH_PTR(phi);
 
@@ -693,8 +650,6 @@ static void generate_phisrc(struct instruction *insn, struct bb_state *state)
 	}
 	END_FOR_EACH_PTR(phi);
 #endif
-
-	release_operand(state, src);
 }
 
 /* Generate code for a single instruction. */
@@ -709,7 +664,8 @@ static void generate_one_insn(struct instruction* insn, struct bb_state* state)
 			break;
 
 		case OP_DEATHNOTE:
-			mark_pseudo_as_dead(state, insn->target);
+			if (insn->target->type == PSEUDO_REG)
+				mark_pseudo_as_dying(insn->target);
 			/* NOTE: does not break, because we don't want to call
 			 * kill_dying_pseudos()! */
 			return;
@@ -851,7 +807,7 @@ static void generate_one_insn(struct instruction* insn, struct bb_state* state)
 			break;
 	}
 
-	kill_dying_pseudos(state);
+	kill_dying_pseudos();
 }
 
 static void connect_storage_list(struct storage_hash_list* list)
@@ -862,14 +818,15 @@ static void connect_storage_list(struct storage_hash_list* list)
 		pseudo_t pseudo = entry->pseudo;
 		struct pinfo* pinfo = lookup_pinfo_of_pseudo(pseudo);
 
-		if (!pinfo->reg && !pinfo->stacked)
+		if (!pinfo->reg.type && !pinfo->stacked)
 		{
-			assert(pinfo->wire);
+			assert(pinfo->wire.type);
 
-			put_pseudo_in_hardreg(NULL, entry->pseudo, pinfo->wire);
+			ref_hardregref(&pinfo->wire);
+			put_pseudo_in_hardregref(entry->pseudo, &pinfo->wire);
 
-			EC("-- import/export pseudo %s ==> hardreg %s\n",
-					show_pseudo(entry->pseudo), show_hardreg(pinfo->reg));
+			EC("-- import/export pseudo %s ==> hardregref %s\n",
+					show_pseudo(entry->pseudo), show_hardregref(&pinfo->reg));
 		}
 	}
 	END_FOR_EACH_PTR(entry);
@@ -1063,7 +1020,7 @@ static void generate_function_body(struct entrypoint* ep)
 		struct pinfo* pinfo = lookup_pinfo_of_pseudo(arg);
 		assert(pinfo->stacked);
 
-		printf("stackwrite(stack, fp, %d, H%d)\n",
+		printf("stack[fp + %d] = H%d\n",
 				pinfo->stackoffset, arg->nr - 1);
 	}
 	END_FOR_EACH_PTR(arg);

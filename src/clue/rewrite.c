@@ -60,15 +60,16 @@ static struct decompose decompose_pseudo(struct instruction* insn,
 				d.insn->pos = insn->pos;
 				d.insn->target = d.pseudo;
 				d.insn->val = e;
-				break;
+				return d;
 			}
 		}
 	}
-	else if (pseudo->type != PSEUDO_REG)
+
+	if (pseudo->type != PSEUDO_REG)
 	{
 		d.insn = __alloc_instruction(0);
 		d.pseudo = alloc_pseudo(d.insn);
-		d.insn->opcode = OP_COPY;
+		d.insn->opcode = OP_SETVAL;
 		d.insn->size = insn->size;
 		d.insn->bb = insn->bb;
 		d.insn->pos = insn->pos;
@@ -103,6 +104,17 @@ static void rewrite_bb(struct basic_block* bb)
 	again:
 		switch (insn->opcode)
 		{
+			case OP_RET:
+			case OP_CAST:
+			case OP_SCAST:
+			case OP_FPCAST:
+			case OP_PTRCAST:
+			{
+				if (insn->src)
+					DECOMPOSE(insn->src, TYPE_ANY, NULL);
+				break;
+			}
+
 			case OP_ADD:
 			case OP_MULU:
 			case OP_MULS:
@@ -144,7 +156,6 @@ static void rewrite_bb(struct basic_block* bb)
 			}
 
 			case OP_CALL:
-			case OP_INLINED_CALL:
 			{
 				struct symbol* sym;
 				if (insn->func->type == PSEUDO_REG)
@@ -182,6 +193,7 @@ static void rewrite_bb(struct basic_block* bb)
 				}
 				END_FOR_EACH_PTR(arg);
 				FINISH_PTR_LIST(type);
+
 				break;
 			}
 
@@ -283,11 +295,49 @@ static void rewrite_bb(struct basic_block* bb)
 				break;
 			}
 
+#if 0
 			case OP_PHISOURCE:
 			{
-				//DECOMPOSE(insn->phi_src, TYPE_ANY, NULL);
+				DECOMPOSE(insn->phi_src, TYPE_ANY, NULL);
+
+				struct instruction* phi;
+				int i = 0;
+				FOR_EACH_PTR(insn->phi_users, phi) {
+					pseudo_t tmp = phi->src;
+					pseudo_t src = insn->phi_src;
+
+					if (i == 0)
+					{
+						insn->opcode = OP_COPY;
+						insn->target = tmp;
+						insn->src = src;
+					}
+					else
+					{
+						struct instruction *copy = __alloc_instruction(0);
+
+						copy->bb = bb;
+						copy->opcode = OP_COPY;
+						copy->size = insn->size;
+						copy->pos = insn->pos;
+						copy->target = tmp;
+						copy->src = src;
+
+						INSERT_CURRENT(copy, insn);
+					}
+#if 0
+					// update the liveness info
+					remove_phisrc_defines(insn);
+					// FIXME: should really something like add_pseudo_exclusive()
+					add_pseudo(&bb->defines, tmp);
+#endif
+
+					i++;
+				}
+				END_FOR_EACH_PTR(phi);
 				break;
 			}
+#endif
 		}
 	}
 	END_FOR_EACH_PTR(insn);
