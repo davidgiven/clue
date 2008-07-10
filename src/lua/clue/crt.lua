@@ -38,92 +38,30 @@ local TOSTRING_FN = 4
 local DATA_I = 1
 local OFFSET_I = 2
 
-function ptrread(ptr, offset)
-	local data = ptr[DATA_I]
-	local baseo = ptr[OFFSET_I]
-	return data[offset + baseo]
-end
-
-function ptrwrite(ptr, offset, value)
-	local data = ptr[DATA_I]
-	local baseo = ptr[OFFSET_I]
-	data[offset + baseo] = value
-end
-
-function ptroffset(ptr, offset)
-	local data = ptr[DATA_I]
-	local baseo = ptr[OFFSET_I]
-	return {
-		[DATA_I] = data,
-		[OFFSET_I] = baseo + offset
-	}
-end
-
-function ptrtostring(ptr)
-	local data = ptr[DATA_I]
-	local offset = ptr[OFFSET_I]
-	
+function ptrtostring(po, pd)
 	local s = {}
 	while true do
-		local c = data[offset]
+		local c = pd[po]
 		if (c == 0) then
 			break;
 		else
 			s[#s+1] = c
 		end
-		offset = offset + 1
+		po = po + 1
 	end
 	
 	return string_char(unpack(s))
 end
 	
--- Read a value from the stack.
-
-function stackread(stack, o, offset)
-	return stack[o + offset]
-end
-
--- Write a value to the stack.
-
-function stackwrite(stack, o, offset, value)
-	stack[o + offset] = value
-end
-
--- Construct a new pointer pointing at the stack.
- 
-function stackoffset(stack, o, offset)
-	return {
-		[DATA_I] = stack,
-		[OFFSET_I] = o + offset
-	}
-end
-
--- Construct a pointer to new storage.
-
-function newptr(data)
-	return {
-		[DATA_I] = data or {},
-		[OFFSET_I] = 1
-	}
-end
-
--- Construct a pointer to a string.
+-- Construct a string array.
 
 function newstring(s)
 	local len = string_len(s)
-	s = {string_byte(s, 1, len)}
-	return {
-		[DATA_I] = s,
-		[OFFSET_I] = 1
-	}
+	local s = {string_byte(s, 1, len)}
+	s[#s+1] = 0
+	return s
 end
 
--- Ditto, but adds a \0 on the end
-
-function newstring0(s)
-	return newstring(s..ZERO)
-end
- 
 -- Number operations.
 
 function int(v)

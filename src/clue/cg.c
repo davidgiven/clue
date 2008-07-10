@@ -92,6 +92,7 @@ static void generate_load(struct instruction *insn, struct bb_state *state)
 	create_hardregref(&dest, insn->target);
 
 	assert(address.type == TYPE_PTR);
+
 	E("%s = %s[%s + %d]\n",
 			show_hardreg(dest.simple),
 			show_hardreg(address.base),
@@ -99,7 +100,11 @@ static void generate_load(struct instruction *insn, struct bb_state *state)
 			insn->offset);
 
 	if (dest.type == TYPE_PTR)
-		cg_unpack_pointer(&dest);
+		E("%s = %s[%s + %d]\n",
+				show_hardreg(dest.base),
+				show_hardreg(address.base),
+				show_hardreg(address.simple),
+				insn->offset + 1);
 }
 
 /* Store data into memory. */
@@ -113,19 +118,19 @@ static void generate_store(struct instruction *insn, struct bb_state *state)
 	find_hardregref(&src, insn->target);
 
 	assert(address.type == TYPE_PTR);
+
+	E("%s[%s + %d] = %s\n",
+			show_hardreg(address.base),
+			show_hardreg(address.simple),
+			insn->offset,
+			show_hardreg(src.simple));
+
 	if (src.type == TYPE_PTR)
-		E("%s[%s + %d] = {%s, %s}\n",
-				show_hardreg(address.base),
-				show_hardreg(address.simple),
-				insn->offset,
-				show_hardreg(src.base),
-				show_hardreg(src.simple));
-	else
 		E("%s[%s + %d] = %s\n",
 				show_hardreg(address.base),
 				show_hardreg(address.simple),
-				insn->offset,
-				show_hardreg(src.simple));
+				insn->offset + 1,
+				show_hardreg(src.base));
 }
 
 /* Load a pseudo into a register. */
@@ -144,13 +149,20 @@ static void emit_load(struct hardregref* dest, pseudo_t pseudo)
 			break;
 
 		case PSEUDO_ARG:
+		{
+			struct pinfo* pinfo = lookup_pinfo_of_pseudo(pseudo);
+			assert(pinfo->stacked);
+
 			E("%s = stack[fp + %d]\n",
 					show_hardreg(dest->simple),
-					pseudo->nr - 1);
+					pinfo->stackoffset);
 
 			if (dest->type == TYPE_PTR)
-				cg_unpack_pointer(dest);
+				E("%s = stack[fp + %d]\n",
+						show_hardreg(dest->base),
+						pinfo->stackoffset + 1);
 			break;
+		}
 
 		case PSEUDO_REG:
 		{
@@ -239,6 +251,7 @@ static void generate_setval(struct instruction *insn, struct bb_state *state)
 		{
 			case TYPE_PTR:
 				assert(expr->value == 0);
+				E("%s = nil\n", show_hardreg(dest.simple));
 				E("%s = nil\n", show_hardreg(dest.base));
 				break;
 
@@ -534,9 +547,9 @@ static void generate_ret(struct instruction *insn, struct bb_state *state)
 		find_hardregref(&src, insn->src);
 
 		if (src.type == TYPE_PTR)
-			E(" {%s, %s}",
-					show_hardreg(src.base),
-					show_hardreg(src.simple));
+			E(" %s, %s",
+					show_hardreg(src.simple),
+					show_hardreg(src.base));
 		else
 			E(" %s", show_hardreg(src.simple));
 	}
@@ -557,10 +570,13 @@ static void generate_call(struct instruction *insn, struct bb_state *state)
 	if (insn->target && (insn->target != VOID))
 	{
 		create_hardregref(&target, insn->target);
-		E("%s = ", show_hardreg(target.simple));
+		if (target.type == TYPE_PTR)
+			E("%s, %s = ", show_hardreg(target.simple), show_hardreg(target.base));
+		else
+			E("%s = ", show_hardreg(target.simple));
 	}
 
-	E("%s(stack, sp", show_hardreg(function.simple));
+	E("%s(sp, stack", show_hardreg(function.simple));
 
 	pseudo_t arg;
 	FOR_EACH_PTR(insn->arguments, arg)
@@ -569,17 +585,14 @@ static void generate_call(struct instruction *insn, struct bb_state *state)
 		find_hardregref(&hrf, arg);
 
 		if (hrf.type == TYPE_PTR)
-			E(", {%s, %s}", show_hardreg(hrf.base),
-					show_hardreg(hrf.simple));
+			E(", %s, %s", show_hardreg(hrf.simple),
+					show_hardreg(hrf.base));
 		else
 			E(", %s", show_hardreg(hrf.simple));
 	}
 	END_FOR_EACH_PTR(arg);
 
 	E(")\n");
-
-	if (target.type == TYPE_PTR)
-		cg_unpack_pointer(&target);
 }
 
 /* Generate a branch, conditional or otherwise. */
@@ -981,12 +994,14 @@ static void wire_up_arguments(struct entrypoint* ep, struct basic_block* bb)
 	FOR_EACH_PTR(entry->arg_list, arg)
 	{
 		struct pinfo* pinfo = lookup_pinfo_of_pseudo(arg);
+		int size = bits_to_bytes(pinfo->size);
 
 		pinfo->stacked = 1;
-		pinfo->stackoffset = stacksize++;
+		pinfo->stackoffset = stacksize;
+		stacksize += size;
 
-		printf("-- arg %s on stack at offset %d\n", show_pseudo(arg),
-				pinfo->stackoffset);
+		printf("-- arg %s on stack at offset %d, size %d\n", show_pseudo(arg),
+				pinfo->stackoffset, size);
 	}
 	END_FOR_EACH_PTR(arg);
 }
@@ -997,7 +1012,7 @@ static void generate_function_body(struct entrypoint* ep)
 {
 	/* Write out the function header. */
 
-	printf("%s = function(stack, fp", show_symbol_mangled(ep->name));
+	printf("%s = function(fp, stack", show_symbol_mangled(ep->name));
 
 	struct instruction* entry = ep->entry;
 
@@ -1005,30 +1020,40 @@ static void generate_function_body(struct entrypoint* ep)
 	pseudo_t arg;
 	FOR_EACH_PTR(entry->arg_list, arg)
 	{
-		printf(", H%d", arg->nr - 1);
-		count++;
+		struct pinfo* pinfo = lookup_pinfo_of_pseudo(arg);
+		int size = bits_to_bytes(pinfo->size);
+		count += size;
 	}
 	END_FOR_EACH_PTR(arg);
+
+	int i;
+	for (i = 0; i<count; i++)
+		printf(", H%d", i);
 
 	printf(")\n");
 
 	/* Adjust stack, and put all arguments onto it. */
 
 	printf("local sp = fp + %d\n", stacksize);
+	i = 0;
 	FOR_EACH_PTR(entry->arg_list, arg)
 	{
 		struct pinfo* pinfo = lookup_pinfo_of_pseudo(arg);
+		int size = bits_to_bytes(pinfo->size);
 		assert(pinfo->stacked);
 
-		printf("stack[fp + %d] = H%d\n",
-				pinfo->stackoffset, arg->nr - 1);
+		int j;
+		for (j = 0; j < size; j++)
+			printf("stack[fp + %d] = H%d\n",
+					pinfo->stackoffset+j, i+j);
+
+		i += size;
 	}
 	END_FOR_EACH_PTR(arg);
 
 	/* Declare all used registers. Registers that were used for argument
 	 * passing are automatically local. */
 
-	int i;
 	for (i = count; i < NUM_REGS; i++)
 	{
 		struct hardreg* reg = &hardregs[i];

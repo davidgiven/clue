@@ -13,6 +13,7 @@ require "socket"
 
 local unpack = unpack
 local type = type
+local print = print
 
 local ptrread = clue.crt.ptrread
 local ptrwrite = clue.crt.ptrwrite
@@ -37,117 +38,132 @@ local socket_gettime = socket.gettime
 
 module "clue.libc"
 
-function _malloc(stack, sp, size)
-	return newptr()
+function _malloc(sp, stack, size)
+	return 1, {}
 end
 
-function _calloc(stack, sp, size1, size2)
+function _calloc(sp, stack, size1, size2)
 	local d = {}
 	for i = 1, (size1*size2) do
 		d[i] = 0
 	end
-	return newptr(d)
+	return 1, d
 end
 	
-function _free(stack, sp, p)
+function _free(sp, stack, po, pd)
 end
 
-function _realloc(stack, sp, p, size)
-	return p
+function _realloc(sp, stack, po, pd)
+	return po, pd
 end
 
-function _memcpy(stack, sp, dest, src, count)
+function _memcpy(sp, stack, destpo, destpd, srcpo, srcpd, count)
 	for offset = 0, count-1 do
-		local i = ptrread(src, offset)
-		ptrwrite(dest, offset, i)
+		destpd[destpo+offset] = srcpd[srcpo+offset]
 	end
-	return dest
+	return destpo, destpd
 end
 
-function _memset(stack, sp, ptr, c, n)
+function _memset(sp, stack, destpo, destpd, c, n)
 	for offset = 0, n-1 do
-		ptrwrite(ptr, offset, c)
+		destpd[destpo+offset] = c
 	end
-	return ptr
+	return destpo, destpd
 end
 	
-function _atoi(stack, sp, s)
-	s = ptrtostring(s)
+function _atoi(sp, stack, po, pd)
+	s = ptrtostring(po, pd)
 	return math_floor(tonumber(s))
 end
 
 _atol = _atoi
 
-function _printf(stack, sp, format, ...)
-	format = ptrtostring(format)
-	args = {...}
+function _printf(sp, stack, formatpo, formatpd, ...)
+	format = ptrtostring(formatpo, formatpd)
+	local inargs = {...}
+	local outargs = {}
 	
-	for i = 1, #args do
-		local v = args[i]
-		if (type(v) == "table") then
-			args[i] = ptrtostring(v)
+	local inargcount = #inargs
+	local i = 1
+	while (i <= inargcount) do
+		local thisarg = inargs[i]
+		i = i + 1
+		if (i <= inargcount) then
+			local nextarg = inargs[i]
+			if (nextarg == nil) or (type(nextarg) == "table") then
+				-- If the next argument is nil or a table, then we must
+				-- be looking at a register pair representing a pointer.
+				thisarg = ptrtostring(thisarg, nextarg)
+				i = i + 1
+			end
 		end
-	end
+		
+		outargs[#outargs+1] = thisarg
+	end	
 
-	io_write(string_format(format, unpack(args)))
+	io_write(string_format(format, unpack(outargs)))
 	return 1
 end
 
-_stdin = newptr({io_stdin})
-_stdout = newptr({io_stdout})
-_stderr = newptr({io_stderr})
+__stdin = io_stdin
+__stdout = io_stdout
+__stderr = io_stderr
  
-function _putc(stack, sp, c, fp)
-	fp:write(string_format("%c", c))
+function _putc(sp, stack, c, fppo, fppd)
+	fppd:write(string_format("%c", c))
 end
 
 -----------------------------------------------------------------------------
 --                                STRINGS                                  --
 -----------------------------------------------------------------------------
 
-function _strcpy(stack, sp, dest, src)
-	local o = 0
+function _strcpy(sp, stack, destpo, destpd, srcpo, srcpd)
+	local origdestpo = destpo
+	
 	while true do
-		local c = ptrread(src, o)
-		ptrwrite(dest, o, c)
-		o = o + 1
+		local c = srcpd[srcpo]
+		destpd[destpo] = c
+		
+		srcpo = srcpo + 1
+		destpo = destpo + 1
+		
 		if (c == 0) then
 			break
 		end
 	end
 	
-	return dest
+	return origdestpo, destpd
 end
 
 -----------------------------------------------------------------------------
 --                                 MATHS                                   --
 -----------------------------------------------------------------------------
 
-function _sin(stack, sp, x)
+function _sin(sp, stack, x)
 	return math_sin(x)
 end
 
-function _cos(stack, sp, x)
+function _cos(sp, stack, x)
 	return math_cos(x)
 end
 
-function _sqrt(stack, sp, x)
+function _sqrt(sp, stack, x)
 	return math_sqrt(x)
 end
 
-function _pow(stack, sp, x, y)
+function _pow(sp, stack, x, y)
 	return math_pow(x, y)
 end
 
-function _log(stack, sp, x)
+function _log(sp, stack, x)
 	return math_log(x)
 end
 
-function _atan(stack, sp, x)
+function _atan(sp, stack, x)
 	return math_atan(x)
 end
 
-function _exp(stack, sp, x)
+function _exp(sp, stack, x)
 	return math_exp(x)
 end
 
@@ -155,11 +171,11 @@ end
 --                                 TIME                                    --
 -----------------------------------------------------------------------------
 
-function _gettimeofday(stack, sp, tv, tz)
+function _gettimeofday(sp, stack, tvpo, tvpd, tzpo, tzpd)
 	local t = socket_gettime()
 	local secs = math_floor(t)
 	local usecs = math_floor((t - secs) * 1000)
-	ptrwrite(tv, 0, secs)
-	ptrwrite(tv, 1, usecs)
+	tvpd[tvpo+0] = secs
+	tvpd[tvpo+1] = usecs
 	return 0
 end

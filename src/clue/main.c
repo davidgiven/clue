@@ -15,48 +15,46 @@
 
 static void init_sizes(void)
 {
-	max_alignment = 64;
+	/* We say everything is 32 bits wide because that tells sparse how
+	 * much precision an int can store for things like bitfields.
+	 */
+	bits_in_char = 32;
+	max_alignment = bits_in_char;
 
 	bits_in_bool = 1;
-	bits_in_char = 64;
-	bits_in_short = 64;
-	bits_in_int = 64;
-	bits_in_long = 64;
-	bits_in_longlong = 64;
+	bits_in_short = bits_in_char;
+	bits_in_int = bits_in_char;
+	bits_in_long = bits_in_char;
+	bits_in_longlong = bits_in_char;
 
 	max_int_alignment = 1;
 
 	/*
 	 * Floating point data types
 	 */
-	bits_in_float = 64;
-	bits_in_double = 64;
-	bits_in_longdouble = 64;
+	bits_in_float = bits_in_char;
+	bits_in_double = bits_in_char;
+	bits_in_longdouble = bits_in_char;
 
 	max_fp_alignment = 1;
 
 	/*
-	 * Pointer data type
+	 * Pointer data type; these are now stored unpacked, so they're twice
+	 * as big.
 	 */
-	bits_in_pointer = 64;
+	bits_in_pointer = bits_in_char*2;
 	pointer_alignment = 1;
 
 	/*
 	 * Enum data types
 	 */
-	bits_in_enum = 64;
+	bits_in_enum = bits_in_char;
 	enum_alignment = 1;
 }
 
 static void emit_file_prologue(void)
 {
 	printf("require \"clue.crt\"\n");
-	printf("local ptrstore = clue.crt.ptrstore\n");
-	printf("local ptrload = clue.crt.ptrload\n");
-	printf("local ptroffset = clue.crt.ptroffset\n");
-	printf("local stackread = clue.crt.stackread\n");
-	printf("local stackwrite = clue.crt.stackwrite\n");
-	printf("local stackoffset = clue.crt.stackoffset\n");
 	printf("local int = clue.crt.int\n");
 	printf("local booland = clue.crt.booland\n");
 	printf("local boolor = clue.crt.boolor\n");

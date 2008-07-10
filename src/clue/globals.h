@@ -87,6 +87,7 @@ struct pinfo
 {
 	pseudo_t pseudo;
 	int type;
+	int size;
 	struct hardregref reg;
 	struct hardregref wire;
 	unsigned int stackoffset;
