@@ -84,7 +84,7 @@ static int emit_array_initializer(const char* luaname, int pos, struct expressio
 					struct symbol* sym = expr->unop->symbol;
 
 					declare_symbol(sym);
-					E("_memcpy(nil, nil, %s, %s, %d)\n",
+					E("_memcpy(nil, nil, %s, 1, %s, 1, %d)\n",
 							luaname,
 							show_symbol_mangled(sym),
 							bits_to_bytes(sym->bit_size));
@@ -109,11 +109,35 @@ static int emit_array_initializer(const char* luaname, int pos, struct expressio
 
 /* Emit code to define an uninitialized global array. */
 
-static void emit_array(struct symbol *sym)
+static void emit_array(struct symbol* sym)
 {
 	const char* luaname = show_symbol_mangled(sym);
 	if (sym->initializer)
 		emit_array_initializer(luaname, 0, sym->initializer);
+}
+
+/* Emit code to define an initialized scalar. */
+
+static void emit_scalar(struct symbol* sym)
+{
+	struct expression* expr = sym->initializer;
+	if (!expr)
+		return;
+
+	const char* luaname = show_symbol_mangled(sym);
+	switch (expr->type)
+	{
+		case EXPR_SYMBOL:
+		{
+			declare_symbol(expr->symbol);
+			E("%s[1] = 1\n", luaname);
+			E("%s[2] = %s\n", luaname, show_symbol_mangled(expr->symbol));
+			break;
+		}
+
+		default:
+			assert(0);
+	}
 }
 
 /* Compile all referenced symbols for a function. */
@@ -161,7 +185,7 @@ static void declare_symbol(struct symbol* sym)
     	 * it yet).
     	 */
     	if (type->type != SYM_FN)
-    		E("local %s = newptr()\n", name);
+    		E("local %s = {}\n", name);
 
 		/* Anonymous objects get defined immediately. */
 
@@ -186,9 +210,12 @@ static void define_symbol(struct symbol* sym)
 	{
 		case SYM_ARRAY:
 		case SYM_STRUCT:
+			emit_array(sym);
+			break;
+
 		case SYM_BASETYPE:
 		case SYM_PTR:
-			emit_array(sym);
+			emit_scalar(sym);
 			break;
 
 		case SYM_FN:
@@ -237,7 +264,7 @@ static void create_storage_for_symbol(struct symbol* sym)
     }
     else
     {
-    	E("local %s = newptr()\n", name);
+    	E("local %s = {}\n", name);
 		if (!(sym->ctype.modifiers & MOD_STATIC))
 			E("_G.%s = %s\n", name, name);
     }

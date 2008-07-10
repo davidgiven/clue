@@ -43,17 +43,9 @@ end
 	
 -- C runtime library
 
-ptrread = clue.crt.ptrread
-ptrwrite = clue.crt.ptrwrite
-ptroffset = clue.crt.ptroffset
 ptrtostring = clue.crt.ptrtostring
-stackread = clue.crt.stackread
-stackwrite = clue.crt.stackwrite
-stackoffset = clue.crt.stackoffset
 
-newptr = clue.crt.newptr
 newstring = clue.crt.newstring
-newstring0 = clue.crt.newstring0
 
 -- Import the standard library.
 
@@ -77,14 +69,15 @@ do
 	-- (Construct argv list first.)
 	
 	local rawargs = {...}
-	local cargs = newptr();
-	for i, v in ipairs(rawargs) do
-		v = newstring0(v)
-		ptrwrite(cargs, i-1, v)
-	end
-	ptrwrite(cargs, #rawargs, nil)
+	local cargs = {};
 	
-	local result = _main({}, 0, #rawargs, cargs)
+	for i, v in ipairs(rawargs) do
+		v = newstring(v)
+		cargs[#cargs+1] = 1
+		cargs[#cargs+1] = v
+	end
+	
+	local result = _main(1, {}, #rawargs, 1, cargs)
 	os.exit(result)
 end
 

@@ -53,6 +53,23 @@ struct pinfo* lookup_pinfo_of_pseudo(pseudo_t pseudo)
 	pinfo->pseudo = pseudo;
 	pinfo->type = lookup_base_type_of_pseudo(pseudo);
 
+	switch (pinfo->type)
+	{
+		default:
+			pinfo->size = 0;
+			break;
+
+		case TYPE_INT:
+		case TYPE_FLOAT:
+		case TYPE_FN:
+			pinfo->size = bits_in_int;
+			break;
+
+		case TYPE_PTR:
+		case TYPE_FNPTR:
+			pinfo->size = bits_in_pointer;
+			break;
+	}
 
 	avl_insert(&pinfostore, compare_cb, pinfo, NULL);
 	return pinfo;

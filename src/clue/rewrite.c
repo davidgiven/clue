@@ -105,6 +105,7 @@ static void rewrite_bb(struct basic_block* bb)
 		switch (insn->opcode)
 		{
 			case OP_RET:
+			case OP_COPY:
 			case OP_CAST:
 			case OP_SCAST:
 			case OP_FPCAST:
@@ -211,8 +212,8 @@ static void rewrite_bb(struct basic_block* bb)
 				 * structure copy and needs special handling.
 				 */
 
-				if (insn->size == bits_in_char)
-					goto simple_load_or_store;
+				goto simple_load_or_store;
+				//if (insn->size == bits_in_char)
 
 				/* The instruction is of the form:
 				 *
@@ -234,6 +235,10 @@ static void rewrite_bb(struct basic_block* bb)
 
 			case OP_STORE:
 			{
+				goto simple_load_or_store;
+				//int dtype = get_base_type_of_pseudo(insn->target);
+				break;
+#if 0
 				/* Check the size field. If it's bits_in_char, this is a
 				 * simple load or store; otherwise, this is part of a
 				 * structure copy and needs special handling.
@@ -271,7 +276,7 @@ static void rewrite_bb(struct basic_block* bb)
 
 				pseudo_t destpseudo = insn->src;
 				pseudo_t srcpseudo = insn->target;
-				assert(insn->offset == 0);
+				//assert(insn->offset == 0);
 
 				insn->opcode = OP_CALL;
 				insn->target = NULL;
@@ -286,6 +291,7 @@ static void rewrite_bb(struct basic_block* bb)
 
 				/* Make sure the OP_CALL is properly decomposed. */
 				goto again;
+#endif
 			}
 
 			simple_load_or_store:

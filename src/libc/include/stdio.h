@@ -17,9 +17,12 @@
 extern int printf(const char* format, ...);
 
 typedef struct FILE FILE;
-extern FILE* stdin;
-extern FILE* stdout;
-extern FILE* stderr;
+extern FILE _stdin;
+extern FILE _stdout;
+extern FILE _stderr;
+#define stdin (&_stdin)
+#define stdout (&_stdout)
+#define stderr (&_stderr)
 
 extern int putc(int c, FILE* fp);
 
