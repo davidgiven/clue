@@ -1,0 +1,74 @@
+#!/bin/sh
+# Simple script to regenerate the README.benchmarks file.
+# 
+# © 2008 David Given.
+# Clue is licensed under the Revised BSD open source license. To get the
+# full license text, see the README file.
+#
+# $Id: cluebat 2 2008-07-08 12:46:21Z dtrg $
+# $HeadURL: https://cluecc.svn.sourceforge.net/svnroot/cluecc/clue/cluebat $
+# $LastChangedDate: 2008-07-08 13:46:21 +0100 (Tue, 08 Jul 2008) $
+
+set -e
+
+
+cat << EOF
+These are the benchmark results that are produced by my computer.
+
+The Computer Language Benchmark Game benchmarks:
+
+---snip---
+EOF
+
+./run-benchmarks
+
+cat << EOF
+---snip---
+
+The time column indicates the absolute time in seconds; the comparison
+factor indicates the time taken as a multiple of the time gcc took. So
+1 means the same time, 2 means twice as long, etc. All times include
+loading and startup.
+
+
+The Whetstone benchmark:
+
+I ran this three times, again using gcc, clue/lua and clue/luajit. The
+results follow:
+
+gcc:
+
+---snip---
+EOF
+
+gcc -Os test/whetstone.c -o /tmp/benchmark -lm
+/tmp/benchmark
+
+cat << EOF
+---snip---
+
+Lua interpreter:
+
+---snip---
+EOF
+
+./cluebat test/whetstone.c /tmp/benchmark.luac
+./cluerun /tmp/benchmark.luac
+
+cat << EOF
+---snip---
+
+LuaJIT:
+
+---snip---
+EOF
+
+luajit -O ./cluerun /tmp/benchmark.luac
+
+cat << EOF
+---snip---
+
+# \$Id: README.benchmarks 7 2008-07-10 22:17:44Z dtrg \$
+# \$HeadURL: https://cluecc.svn.sourceforge.net/svnroot/cluecc/clue/README.benchmarks \$
+# \$LastChangedDate: 2008-07-10 23:17:44 +0100 (Thu, 10 Jul 2008) \$
+EOF
