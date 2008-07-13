@@ -17,8 +17,8 @@ local benchdata = {
 	{"clbg-partialsums",               250000},
 	{"clbg-fannkuch",                  8},
 	{"clbg-recursive",                 8},
-	{"clbg-n-body",                    20000},
-	{"clbg-nsieve",                    8}
+	{"clbg-n-body",                    60000},
+	{"clbg-nsieve",                    9}
 }
 
 local function exec(s)
