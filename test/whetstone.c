@@ -384,4 +384,6 @@ int main(int argc, const char* argv[])
 
 	if (Check == 0)
 		printf("Wrong answer  ");
+
+	return 0;
 }
