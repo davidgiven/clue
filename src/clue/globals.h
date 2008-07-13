@@ -134,6 +134,8 @@ extern void create_hardregref(struct hardregref* hrf, pseudo_t pseudo);
 extern void clone_ptr_hardregref(struct hardregref* src, struct hardregref* hrf,
 		pseudo_t pseudo);
 
+extern int is_pseudo_in_register(pseudo_t pseudo);
+
 extern void put_pseudo_in_hardregref(pseudo_t pseudo, struct hardregref* hrf);
 
 extern void mark_pseudo_as_dying(pseudo_t pseudo);

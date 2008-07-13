@@ -151,16 +151,25 @@ static void emit_load(struct hardregref* dest, pseudo_t pseudo)
 		case PSEUDO_ARG:
 		{
 			struct pinfo* pinfo = lookup_pinfo_of_pseudo(pseudo);
-			assert(pinfo->stacked);
 
-			E("%s = stack[fp + %d]\n",
-					show_hardreg(dest->simple),
-					pinfo->stackoffset);
-
-			if (dest->type == TYPE_PTR)
+			if (pinfo->stacked)
+			{
 				E("%s = stack[fp + %d]\n",
-						show_hardreg(dest->base),
-						pinfo->stackoffset + 1);
+						show_hardreg(dest->simple),
+						pinfo->stackoffset);
+
+				if (dest->type == TYPE_PTR)
+					E("%s = stack[fp + %d]\n",
+							show_hardreg(dest->base),
+							pinfo->stackoffset + 1);
+			}
+			else
+			{
+				assert(pinfo->reg.type);
+				cg_copy_hardreg(pinfo->reg.simple, dest->simple);
+				if (dest->type == TYPE_PTR)
+					cg_copy_hardreg(pinfo->reg.base, dest->base);
+			}
 			break;
 		}
 
@@ -986,24 +995,46 @@ static void generate_bb_list(struct basic_block_list *list,
 
 static void wire_up_arguments(struct entrypoint* ep, struct basic_block* bb)
 {
-	/* Iterate through each argument. */
+	/* Iterate through each argument and each declared argument
+	 * simultaneously. */
 
 	struct instruction* entry = ep->entry;
+	struct symbol* declared = ep->name->ctype.base_type;
 
 	pseudo_t arg;
+	struct symbol* declaredarg;
+	PREPARE_PTR_LIST(declared->arguments, declaredarg);
 	FOR_EACH_PTR(entry->arg_list, arg)
 	{
 		struct pinfo* pinfo = lookup_pinfo_of_pseudo(arg);
 		int size = bits_to_bytes(pinfo->size);
 
-		pinfo->stacked = 1;
-		pinfo->stackoffset = stacksize;
-		stacksize += size;
+		if (declaredarg && !(declaredarg->ctype.modifiers & MOD_ADDRESSABLE))
+		{
+			/* Put this argument in a register. */
 
-		printf("-- arg %s on stack at offset %d, size %d\n", show_pseudo(arg),
-				pinfo->stackoffset, size);
+			pinfo->stacked = 0;
+			create_hardregref(&pinfo->wire, arg);
+
+			printf("-- arg %s in hardregref %s\n", show_pseudo(arg),
+					show_hardregref(&pinfo->wire));
+		}
+		else
+		{
+			/* Otherwise stack it. */
+
+			pinfo->stacked = 1;
+			pinfo->stackoffset = stacksize;
+			stacksize += size;
+
+			printf("-- arg %s on stack at offset %d, size %d\n", show_pseudo(arg),
+					pinfo->stackoffset, size);
+		}
+
+		NEXT_PTR_LIST(declaredarg);
 	}
 	END_FOR_EACH_PTR(arg);
+	FINISH_PTR_LIST(declaredarg);
 }
 
 /* Generate the function prologue. */
@@ -1040,12 +1071,14 @@ static void generate_function_body(struct entrypoint* ep)
 	{
 		struct pinfo* pinfo = lookup_pinfo_of_pseudo(arg);
 		int size = bits_to_bytes(pinfo->size);
-		assert(pinfo->stacked);
 
-		int j;
-		for (j = 0; j < size; j++)
-			printf("stack[fp + %d] = H%d\n",
-					pinfo->stackoffset+j, i+j);
+		if (pinfo->stacked)
+		{
+			int j;
+			for (j = 0; j < size; j++)
+				printf("stack[fp + %d] = H%d\n",
+						pinfo->stackoffset+j, i+j);
+		}
 
 		i += size;
 	}
@@ -1074,17 +1107,21 @@ static void generate_function_body(struct entrypoint* ep)
 
 void generate_ep(struct entrypoint *ep)
 {
-    /* Recursively rewrite the code to decompose instructions into more
-     * primitive forms. */
-
-	unsigned long generation = ++bb_generation;
-	rewrite_bb_recursively(ep->entry->bb, generation);
-
 	/* Mark all hardregs as untouched, so we can keep track of which ones
 	 * were used. */
 
 	reset_hardregs();
 	untouch_hardregs();
+
+	/* Preload the hardregs with the input arguments. */
+
+	wire_up_arguments(ep, ep->entry->bb);
+
+    /* Recursively rewrite the code to decompose instructions into more
+     * primitive forms. */
+
+	unsigned long generation = ++bb_generation;
+	rewrite_bb_recursively(ep->entry->bb, generation);
 
 	/* We're using no stack space. */
 
@@ -1098,10 +1135,6 @@ void generate_ep(struct entrypoint *ep)
 	/* Convert out of SSA form. */
 
 	//unssa(ep);
-
-	/* Preload the hardregs with the input arguments. */
-
-	wire_up_arguments(ep, ep->entry->bb);
 
 	/* Set up initial inter-bb storage links. */
 
