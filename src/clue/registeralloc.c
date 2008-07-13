@@ -120,7 +120,7 @@ struct hardreg* allocate_hardreg(void)
 
 void find_hardregref(struct hardregref* hrf, pseudo_t pseudo)
 {
-	assert(pseudo->type == PSEUDO_REG);
+	assert(is_pseudo_in_register(pseudo));
 
 	struct pinfo* pinfo = lookup_pinfo_of_pseudo(pseudo);
 	assert(pinfo->reg.type);
@@ -132,7 +132,6 @@ void find_hardregref(struct hardregref* hrf, pseudo_t pseudo)
 
 void create_hardregref(struct hardregref* hrf, pseudo_t pseudo)
 {
-	assert(pseudo->type == PSEUDO_REG);
 	struct pinfo* pinfo = lookup_pinfo_of_pseudo(pseudo);
 
 	if (pinfo->reg.type == TYPE_NONE)
@@ -300,6 +299,14 @@ static void wire_up_storage_hash_list(struct storage_hash_list* list)
 					put_pseudo_in_hardreg(NULL, entry->pseudo, pinfo->wire);
 					break;
 #endif
+				case REG_ARG:
+					/* This is an argument; if there's a specified register,
+					 * use it.
+					 */
+
+					if (!pinfo->stacked)
+						break;
+					/* fall through */
 
 				case REG_UDEF:
 					/* The front end doesn't care where this is. */
@@ -355,5 +362,27 @@ static void wire_up_bb_list(struct basic_block_list* list,
 		wire_up_bb_recursively(bb, generation);
 	}
 	END_FOR_EACH_PTR(bb);
+}
+
+/* Is this pseudo in a register? */
+
+int is_pseudo_in_register(pseudo_t pseudo)
+{
+	switch (pseudo->type)
+	{
+		case PSEUDO_REG:
+			return 1;
+
+		default:
+			return 0;
+
+		case PSEUDO_ARG:
+		{
+			struct pinfo* pinfo = lookup_pinfo_of_pseudo(pseudo);
+			if (pinfo->wire.type != TYPE_NONE)
+				return 1;
+			return 0;
+		}
+	}
 }
 

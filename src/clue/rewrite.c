@@ -65,7 +65,7 @@ static struct decompose decompose_pseudo(struct instruction* insn,
 		}
 	}
 
-	if (pseudo->type != PSEUDO_REG)
+	if (!is_pseudo_in_register(pseudo))
 	{
 		d.insn = __alloc_instruction(0);
 		d.pseudo = alloc_pseudo(d.insn);
