@@ -2,7 +2,7 @@
                                    =========
 
                             (C) 2008 David Given
-                                 2008-07-06
+                                 2008-07-14
 
 
 INTRODUCTION
@@ -177,14 +177,6 @@ There are a number of ways to take Clue further.
   compiling it and postprocessing it. This will prevent a lot of useless
   bytecode being produced, so making things faster.
    
-- Throw away and rewrite the code generator to use a proper register
-  allocator, which will produce tighter, far more efficient code.
-  
-- Change the way pointer arithmetic is done; currently, all pointer
-  dereferenced are proxied via a function and at least two table lookups.
-  This is not necessary, but requires the code generator change to make
-  work.
-
 - Finish the language coverage. There are a number of C language features
   that I haven't gotten around to doing (like switch).  
 
