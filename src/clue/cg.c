@@ -69,68 +69,124 @@ static void cg_copy_hardreg(struct hardreg* src, struct hardreg* dest)
 		E("%s = %s\n", show_hardreg(dest), show_hardreg(src));
 }
 
-/* Unpack a packed pointer into a register pair. */
+/* Do a structure copy from one location to another. */
 
-static void cg_unpack_pointer(struct hardregref* hrf)
+static void cg_memcpy(struct hardregref* src, struct hardregref* dest, int size)
 {
-	E("%s = %s[1]\n",
-			show_hardreg(hrf->base),
-			show_hardreg(hrf->simple));
-	E("%s = %s[2]\n",
-			show_hardreg(hrf->simple),
-			show_hardreg(hrf->simple));
+	assert(src->type == TYPE_PTR);
+	assert(dest->type == TYPE_PTR);
+
+	E("_memcpy(sp, stack, %s, %s, %s, %s, %d)\n",
+			show_hardreg(dest->simple),
+			show_hardreg(dest->base),
+			show_hardreg(src->simple),
+			show_hardreg(src->base),
+			size);
 }
 
 /* Load data into memory. */
 
 static void generate_load(struct instruction *insn, struct bb_state *state)
 {
-	struct hardregref address;
-	struct hardregref dest;
+	switch (get_base_type_of_pseudo(insn->target))
+	{
+		case TYPE_STRUCT:
+		{
+			/* Ignore structure loads: all the logic for these happens in the
+			 * store instruction.
+			 */
+			EC("-- structure load nop\n");
+			break;
+		}
 
-	find_hardregref(&address, insn->src);
-	create_hardregref(&dest, insn->target);
+		default:
+		{
+			struct hardregref address;
+			struct hardregref dest;
 
-	assert(address.type == TYPE_PTR);
+			find_hardregref(&address, insn->src);
+			create_hardregref(&dest, insn->target);
 
-	E("%s = %s[%s + %d]\n",
-			show_hardreg(dest.simple),
-			show_hardreg(address.base),
-			show_hardreg(address.simple),
-			insn->offset);
+			assert(address.type == TYPE_PTR);
 
-	if (dest.type == TYPE_PTR)
-		E("%s = %s[%s + %d]\n",
-				show_hardreg(dest.base),
-				show_hardreg(address.base),
-				show_hardreg(address.simple),
-				insn->offset + 1);
+			E("%s = %s[%s + %d]\n",
+					show_hardreg(dest.simple),
+					show_hardreg(address.base),
+					show_hardreg(address.simple),
+					insn->offset);
+
+			if (dest.type == TYPE_PTR)
+				E("%s = %s[%s + %d]\n",
+						show_hardreg(dest.base),
+						show_hardreg(address.base),
+						show_hardreg(address.simple),
+						insn->offset + 1);
+		}
+	}
 }
 
 /* Store data into memory. */
 
 static void generate_store(struct instruction *insn, struct bb_state *state)
 {
-	struct hardregref address;
-	struct hardregref src;
+	switch (get_base_type_of_pseudo(insn->target))
+	{
+		case TYPE_STRUCT:
+		{
+			/* The target pseudo represents the structure. This must have come
+			 * from a structure load instruction, so we follow the definition
+			 * chain to find it and figure out the source address.
+			 */
 
-	find_hardregref(&address, insn->src);
-	find_hardregref(&src, insn->target);
+			assert(insn->target->def->opcode == OP_LOAD);
+			assert(insn->target->def->size == insn->size);
+			assert(insn->target->def->target->type == insn->target->type);
+			assert(insn->target->def->target->nr == insn->target->nr);
+			pseudo_t srcpseudo = insn->target->def->src;
 
-	assert(address.type == TYPE_PTR);
+			/* Currently no support for offsetted structure copies. */
 
-	E("%s[%s + %d] = %s\n",
-			show_hardreg(address.base),
-			show_hardreg(address.simple),
-			insn->offset,
-			show_hardreg(src.simple));
+			assert(insn->target->def->offset == 0);
+			assert(insn->offset == 0);
 
-	if (src.type == TYPE_PTR)
-		E("%s[%s + %d] = %s\n",
-				show_hardreg(address.base),
-				show_hardreg(address.simple),
-				insn->offset + 1,
-				show_hardreg(src.base));
+			struct hardregref src;
+			find_hardregref(&src, srcpseudo);
+
+			struct hardregref dest;
+			find_hardregref(&dest, insn->src);
+
+			EC("-- structure copy from %s to %s size %d\n",
+					show_hardregref(&src), show_hardregref(&dest),
+					bits_to_bytes(insn->size));
+
+			cg_memcpy(&src, &dest, bits_to_bytes(insn->size));
+			break;
+		}
+
+		default:
+		{
+			struct hardregref address;
+			struct hardregref src;
+
+			find_hardregref(&address, insn->src);
+			find_hardregref(&src, insn->target);
+
+			assert(address.type == TYPE_PTR);
+
+			E("%s[%s + %d] = %s\n",
+					show_hardreg(address.base),
+					show_hardreg(address.simple),
+					insn->offset,
+					show_hardreg(src.simple));
+
+			if (src.type == TYPE_PTR)
+				E("%s[%s + %d] = %s\n",
+						show_hardreg(address.base),
+						show_hardreg(address.simple),
+						insn->offset + 1,
+						show_hardreg(src.base));
+		}
+	}
 }
 
 /* Load a pseudo into a register. */
@@ -528,6 +584,16 @@ static void generate_uniop(struct instruction *insn, struct bb_state *state)
 	{
 		case OP_NEG:
 			E("%s = -%s\n", dests, srcs);
+			break;
+
+		case OP_COPY:
+			cg_copy_hardreg(src.simple, dest.simple);
+			/* The TYPE_STRUCT here is a special case to deal with rewritten
+			 * structure load instructs from rewrite.c --- it's easier to
+			 * bodge the wrong type than to get the types right.
+			 */
+			if ((dest.type == TYPE_PTR) || (dest.type == TYPE_STRUCT))
+				cg_copy_hardreg(src.base, dest.base);
 			break;
 
 #if 0

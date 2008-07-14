@@ -36,6 +36,8 @@ int get_base_type_of_symbol(struct symbol* s)
 	}
 	if (s->type == SYM_FN)
 		return TYPE_FNPTR;
+	if (s->type == SYM_STRUCT)
+		return TYPE_STRUCT;
 	if (s == &int_type)
 		return TYPE_INT;
 	if (s == &fp_type)
@@ -100,7 +102,6 @@ static int get_base_type_of_instruction(struct instruction* insn)
 
 		case OP_SEL:
 			return get_base_type_of_pseudo(insn->src2);
-
 	}
 
 	if (insn->type)

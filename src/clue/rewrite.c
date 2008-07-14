@@ -206,98 +206,41 @@ static void rewrite_bb(struct basic_block* bb)
 			}
 
 			case OP_LOAD:
-			{
-				/* Check the size field. If it's bits_in_char, this is a
-				 * simple load or store; otherwise, this is part of a
-				 * structure copy and needs special handling.
-				 */
-
-				goto simple_load_or_store;
-				//if (insn->size == bits_in_char)
-
-				/* The instruction is of the form:
-				 *
-				 *   load.<size> %pseudo <- %address
-				 *
-				 * Replace with:
-				 *
-				 *   set %pseudo <- %address
-				 *
-				 * That is, we copy the source address into %pseudo. The
-				 * other half of structure copy, the store, will become
-				 * a call to memcpy.
-				 */
-
-				insn->opcode = OP_COPY;
-				insn->size = bits_in_char;
-				break;
-			}
-
 			case OP_STORE:
 			{
-				goto simple_load_or_store;
-				//int dtype = get_base_type_of_pseudo(insn->target);
-				break;
-#if 0
-				/* Check the size field. If it's bits_in_char, this is a
-				 * simple load or store; otherwise, this is part of a
-				 * structure copy and needs special handling.
-				 */
+				/* Structure copies have a few special requirements that need
+				 * handling: they can't handle offsets, and as the target
+				 * pseudo represents a non-scalar we musn't touch it. */
 
-				if (insn->size == bits_in_char)
-					goto simple_load_or_store;
-
-				/* The instruction is of the form:
-				 *
-				 *   store.<size> %pseudo -> %address
-				 *
-				 * Replace with:
-				 *
-				 *   call _memcpy, %address, %pseudo, bits_to_bytes(<size>)
-				 *
-				 * %pseudo has already been set up to point to the source
-				 * address by the OP_LOAD rewrite rule.
-				 */
-
-				pseudo_t sizepseudo = alloc_pseudo(insn);
-				sizepseudo->type = PSEUDO_VAL;
-				sizepseudo->value = bits_to_bytes(insn->size);
-
-				pseudo_t memcpypseudo = alloc_pseudo(insn);
-				memcpypseudo->type = PSEUDO_SYM;
-				memcpypseudo->sym = lookup_symbol(&memcpy_ident, NS_SYMBOL);
-				if (!memcpypseudo->sym)
+				int dtype = get_base_type_of_pseudo(insn->target);
+				if ((dtype == TYPE_STRUCT) && (insn->offset > 0))
 				{
-					sparse_error(insn->pos, "code requires use of memcpy() but it has not been declared");
+					d.insn = __alloc_instruction(0);
+					pseudo_t value = alloc_pseudo(d.insn);
+					value->type = PSEUDO_VAL;
+					value->value = insn->offset;
 
-					/* Hack in a random symbol so that we don't crash later. */
-					memcpypseudo->sym = insn->bb->ep->name;
+					d.pseudo = alloc_pseudo(d.insn);
+					d.insn->opcode = OP_ADD;
+					d.insn->size = bits_in_pointer;
+					d.insn->bb = insn->bb;
+					d.insn->pos = insn->pos;
+					d.insn->target = d.pseudo;
+					d.insn->src1 = insn->src;
+					d.insn->src2 = value;
+					d.insn->type = &ptr_ctype;
+
+					insn->src = d.pseudo;
+					insn->offset = 0;
+					INSERT_CURRENT(d.insn, insn);
+					insn = d.insn;
+					goto again;
 				}
 
-				pseudo_t destpseudo = insn->src;
-				pseudo_t srcpseudo = insn->target;
-				//assert(insn->offset == 0);
-
-				insn->opcode = OP_CALL;
-				insn->target = NULL;
-				insn->func = memcpypseudo;
-				insn->arguments = NULL;
-				insn->size = bits_in_char;
-				insn->type = NULL;
-
-				add_pseudo(&insn->arguments, destpseudo);
-				add_pseudo(&insn->arguments, srcpseudo);
-				add_pseudo(&insn->arguments, sizepseudo);
-
-				/* Make sure the OP_CALL is properly decomposed. */
-				goto again;
-#endif
-			}
-
-			simple_load_or_store:
-			{
 				DECOMPOSE(insn->src, TYPE_PTR, NULL);
-				DECOMPOSE(insn->target, TYPE_ANY, NULL);
+				if (dtype != TYPE_STRUCT)
+					DECOMPOSE(insn->target, TYPE_ANY, NULL);
+
 				break;
 			}
 

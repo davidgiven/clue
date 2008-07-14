@@ -46,6 +46,7 @@ enum
 	TYPE_PTR,
 	TYPE_FNPTR,
 	TYPE_FN,
+	TYPE_STRUCT,
 };
 
 struct bb_state

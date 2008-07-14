@@ -49,7 +49,8 @@ const char* show_hardregref(struct hardregref* hrf)
 		[TYPE_INT] = "int",
 		[TYPE_FLOAT] = "float",
 		[TYPE_PTR] = "ptr",
-		[TYPE_FNPTR] = "fnptr"
+		[TYPE_FNPTR] = "fnptr",
+		[TYPE_STRUCT] = "struct",
 	};
 
 	const char* s = typenames[hrf->type];
