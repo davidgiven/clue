@@ -13,6 +13,8 @@
 #include "globals.h"
 #include <stdarg.h>
 
+const struct codegenerator* cg;
+
 static void init_sizes(void)
 {
 	/* We say everything is 32 bits wide because that tells sparse how
@@ -54,23 +56,26 @@ static void init_sizes(void)
 
 static void emit_file_prologue(void)
 {
-	printf("require \"clue.crt\"\n");
-	printf("local int = clue.crt.int\n");
-	printf("local booland = clue.crt.booland\n");
-	printf("local boolor = clue.crt.boolor\n");
-	printf("local logand = clue.crt.logand\n");
-	printf("local logor = clue.crt.logor\n");
-	printf("local logxor = clue.crt.logxor\n");
-	printf("local lognot = clue.crt.lognot\n");
-	printf("local shl = clue.crt.shl\n");
-	printf("local shr = clue.crt.shr\n");
-	printf("local _memcpy = _memcpy\n");
+	zsetbuffer(ZBUFFER_HEADER);
+	zprintf("require \"clue.crt\"\n");
+	zprintf("local int = clue.crt.int\n");
+	zprintf("local booland = clue.crt.booland\n");
+	zprintf("local boolor = clue.crt.boolor\n");
+	zprintf("local logand = clue.crt.logand\n");
+	zprintf("local logor = clue.crt.logor\n");
+	zprintf("local logxor = clue.crt.logxor\n");
+	zprintf("local lognot = clue.crt.lognot\n");
+	zprintf("local shl = clue.crt.shl\n");
+	zprintf("local shr = clue.crt.shr\n");
+	zprintf("local _memcpy = _memcpy\n");
 }
 
 int main(int argc, char **argv)
 {
 	init_sizes();
 	init_register_allocator();
+
+	cg = &cg_lua;
 
 	struct string_list* filelist = NULL;
 	struct symbol_list* symbols = sparse_initialize(argc, argv, &filelist);
@@ -85,6 +90,25 @@ int main(int argc, char **argv)
 		compile_symbol_list(symbols);
 	}
 	END_FOR_EACH_PTR_NOTAG(file);
+
+	zsetbuffer(ZBUFFER_HEADER);
+	zflush(ZBUFFER_STDOUT);
+	zprintf("\n");
+
+	zsetbuffer(ZBUFFER_CODE);
+	zflush(ZBUFFER_STDOUT);
+	zprintf("\n");
+
+	cg->function_prologue(NULL);
+	cg->function_prologue_reg(&hardregs[0]);
+	cg->function_prologue_reg(&hardregs[1]);
+	cg->function_prologue_reg(&hardregs[2]);
+	cg->function_prologue_end();
+
+	zsetbuffer(ZBUFFER_INITIALIZER);
+	zflush(ZBUFFER_STDOUT);
+
+	cg->function_epilogue();
 
 	if (die_if_error)
 		return 1;

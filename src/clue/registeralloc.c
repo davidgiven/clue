@@ -15,6 +15,9 @@
 static void wire_up_bb_list(struct basic_block_list *list,
 		unsigned long generation);
 
+struct hardreg stackbase_reg;
+struct hardreg stackoffset_reg;
+struct hardreg frameoffset_reg;
 struct hardreg hardregs[NUM_REGS];
 static struct pinfo_list* dying_pinfos = NULL;
 
@@ -36,7 +39,14 @@ void init_register_allocator(void)
 
 const char* show_hardreg(struct hardreg* reg)
 {
-	return aprintf("H%d", reg->number);
+	if (reg == &stackbase_reg)
+		return "stack";
+	else if (reg == &stackoffset_reg)
+		return "sp";
+	else if (reg == &frameoffset_reg)
+		return "fp";
+	else
+		return aprintf("H%d", reg->number);
 }
 
 /* Generate a string name of a hardregref. */
@@ -62,13 +72,13 @@ const char* show_hardregref(struct hardregref* hrf)
 			return "[none]";
 
 		case TYPE_PTR:
-			return aprintf("[%s:H%d/%d+H%d/%d]", s,
-					hrf->base->number, hrf->base->busy,
-					hrf->simple->number, hrf->simple->busy);
+			return aprintf("[%s:%s/%d+%s/%d]", s,
+					show_hardreg(hrf->base), hrf->base->busy,
+					show_hardreg(hrf->simple), hrf->simple->busy);
 
 		default:
-			return aprintf("[%s:H%d/%d]", s,
-					hrf->simple->number, hrf->simple->busy);
+			return aprintf("[%s:%s/%d]", s,
+					show_hardreg(hrf->simple), hrf->simple->busy);
 	}
 }
 
@@ -209,14 +219,14 @@ void unref_hardregref(struct hardregref* hrf)
 			assert(hrf->base->busy > 0);
 			hrf->base->busy--;
 			if (hrf->base->busy == 0)
-				EC("-- hardreg %s now unused\n", show_hardreg(hrf->base));
+				cg->comment("hardreg %s now unused\n", show_hardreg(hrf->base));
 			/* fall through */
 
 		default:
 			assert(hrf->simple->busy > 0);
 			hrf->simple->busy--;
 			if (hrf->simple->busy == 0)
-				EC("-- hardreg %s now unused\n", show_hardreg(hrf->simple));
+				cg->comment("hardreg %s now unused\n", show_hardreg(hrf->simple));
 	}
 }
 
@@ -224,7 +234,7 @@ void unref_hardregref(struct hardregref* hrf)
 
 void put_pseudo_in_hardregref(pseudo_t pseudo, struct hardregref* hrf)
 {
-	EC("-- pseudo %s assigned to hardregref %s\n", show_pseudo(pseudo),
+	cg->comment("pseudo %s assigned to hardregref %s\n", show_pseudo(pseudo),
 			show_hardregref(hrf));
 
 	struct pinfo* pinfo = lookup_pinfo_of_pseudo(pseudo);
@@ -242,7 +252,7 @@ void mark_pseudo_as_dying(pseudo_t pseudo)
 	struct pinfo* pinfo = lookup_pinfo_of_pseudo(pseudo);
 	pinfo->dying = 1;
 
-	EC("-- pseudo %s in hardregref %s is dying\n",
+	cg->comment("pseudo %s in hardregref %s is dying\n",
 			show_pseudo(pseudo), show_hardregref(&pinfo->reg));
 
 	add_ptr_list(&dying_pinfos, pinfo);
@@ -257,7 +267,7 @@ void kill_dying_pseudos(void)
 	{
 		assert(pinfo->dying);
 
-		EC("-- pseudo %s has died and is no longer in hardregref %s\n",
+		cg->comment("pseudo %s has died and is no longer in hardregref %s\n",
 				show_pseudo(pinfo->pseudo), show_hardregref(&pinfo->reg));
 		unref_hardregref(&pinfo->reg);
 	}
@@ -293,7 +303,7 @@ static void wire_up_storage_hash_list(struct storage_hash_list* list)
 					assert(0);
 					/* The front end wants this to be in a specific register. */
 					pinfo->wire = &hardregs[storage->regno];
-					printf("-- pseudo %s ==> hardreg %s (%p)\n",
+					printf("pseudo %s ==> hardreg %s (%p)\n",
 							show_pseudo(entry->pseudo),
 							show_hardreg(pinfo->wire), storage);
 
@@ -313,12 +323,12 @@ static void wire_up_storage_hash_list(struct storage_hash_list* list)
 					/* The front end doesn't care where this is. */
 
 					create_hardregref(&pinfo->wire, pseudo);
-					printf("-- pseudo %s ==> hardregref %s\n",
+					cg->comment("pseudo %s ==> hardregref %s\n",
 							show_pseudo(entry->pseudo),
 							show_hardregref(&pinfo->wire));
 #if 0
 					pinfo->wire = allocate_hardreg(NULL);
-					printf("-- pseudo %s ==> hardreg %s (%p)\n",
+					cg->comment("pseudo %s ==> hardreg %s (%p)\n",
 							show_pseudo(entry->pseudo),
 							show_hardreg(pinfo->wire), storage);
 
@@ -328,7 +338,7 @@ static void wire_up_storage_hash_list(struct storage_hash_list* list)
 
 				default:
 					/* Shouldn't be anything else... */
-					printf("-- pseudo %s in storage %s?\n",
+					cg->comment("pseudo %s in storage %s?\n",
 							show_pseudo(entry->pseudo),
 							show_storage(storage));
 					assert(0);

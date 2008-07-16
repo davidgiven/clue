@@ -27,11 +27,9 @@ int get_base_type_of_symbol(struct symbol* s)
 		return TYPE_PTR;
 	if (s->type == SYM_PTR)
 	{
-#if 0
 		s = s->ctype.base_type;
 		if (s->type == SYM_FN)
 			return TYPE_FNPTR;
-#endif
 		return TYPE_PTR;
 	}
 	if (s->type == SYM_FN)
@@ -224,7 +222,19 @@ int lookup_base_type_of_pseudo(pseudo_t pseudo)
 		}
 
 		case PSEUDO_SYM:
-			return TYPE_PTR;
+		{
+			struct symbol* sym = pseudo->sym;
+			while (sym->type != SYM_FN)
+			{
+				if (sym->type == SYM_NODE)
+					sym = sym->ctype.base_type;
+				else if (sym->type == SYM_PTR)
+					sym = get_base_type(sym);
+				else
+					return TYPE_PTR;
+			}
+			return TYPE_FNPTR;
+		}
 
 		case PSEUDO_VAL:
 			return TYPE_INT;

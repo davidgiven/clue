@@ -17,7 +17,7 @@ static void define_symbol(struct symbol* sym);
 
 /* Emits elements from within an array initializer. */
 
-static int emit_array_initializer(const char* luaname, int pos, struct expression* expr)
+static int emit_array_initializer(int pos, struct expression* expr)
 {
 	switch (expr->type)
 	{
@@ -28,7 +28,8 @@ static int emit_array_initializer(const char* luaname, int pos, struct expressio
 			for (i = 0; i < s->length; i++)
 			{
 				int c = s->data[i];
-				E("%s[%d] = %d\n", luaname, pos+1, c);
+				cg->set_int(c, &hardregs[1]);
+				cg->store(NULL, &hardregs[0], pos, &hardregs[1]);
 				pos++;
 			}
 			break;
@@ -40,7 +41,7 @@ static int emit_array_initializer(const char* luaname, int pos, struct expressio
 
 			FOR_EACH_PTR(expr->expr_list, e)
 			{
-				emit_array_initializer(luaname, 0, e);
+				emit_array_initializer(pos, e);
 			}
 			END_FOR_EACH_PTR(e);
 			break;
@@ -48,29 +49,32 @@ static int emit_array_initializer(const char* luaname, int pos, struct expressio
 
 		case EXPR_VALUE:
 		{
-			E("%s[%d] = %lld\n", luaname, pos+1, expr->value);
+			cg->set_int(expr->value, &hardregs[1]);
+			cg->store(NULL, &hardregs[0], pos, &hardregs[1]);
 			pos++;
 			break;
 		}
 
 		case EXPR_FVALUE:
 		{
-			E("%s[%d] = %.15llg\n", luaname, pos+1, expr->fvalue);
+			cg->set_float(expr->fvalue, &hardregs[1]);
+			cg->store(NULL, &hardregs[0], pos, &hardregs[1]);
 			pos++;
 			break;
 		}
 
 		case EXPR_POS:
 		{
-			pos = expr->init_offset;
-			emit_array_initializer(luaname, pos, expr->init_expr);
+			pos = expr->init_offset + cg->pointer_zero_offset;
+			emit_array_initializer(pos, expr->init_expr);
 			break;
 		}
 
 		case EXPR_SYMBOL:
 		{
 			declare_symbol(expr->symbol);
-			E("%s[%d] = %s\n", luaname, pos+1, show_symbol_mangled(expr->symbol));
+			cg->set_symbol(expr->symbol, &hardregs[1]);
+			cg->store(NULL, &hardregs[0], pos, &hardregs[1]);
 			break;
 		}
 
@@ -83,11 +87,8 @@ static int emit_array_initializer(const char* luaname, int pos, struct expressio
 					assert(expr->unop->type == EXPR_SYMBOL);
 					struct symbol* sym = expr->unop->symbol;
 
-					declare_symbol(sym);
-					E("_memcpy(nil, nil, %s, 1, %s, 1, %d)\n",
-							luaname,
-							show_symbol_mangled(sym),
-							bits_to_bytes(sym->bit_size));
+					assert(sym->initializer);
+					emit_array_initializer(pos, sym->initializer);
 					break;
 				}
 
@@ -111,9 +112,11 @@ static int emit_array_initializer(const char* luaname, int pos, struct expressio
 
 static void emit_array(struct symbol* sym)
 {
-	const char* luaname = show_symbol_mangled(sym);
 	if (sym->initializer)
-		emit_array_initializer(luaname, 0, sym->initializer);
+	{
+		cg->set_symbol(sym, &hardregs[0]);
+		emit_array_initializer(cg->pointer_zero_offset, sym->initializer);
+	}
 }
 
 /* Emit code to define an initialized scalar. */
@@ -124,14 +127,16 @@ static void emit_scalar(struct symbol* sym)
 	if (!expr)
 		return;
 
-	const char* luaname = show_symbol_mangled(sym);
+	cg->set_symbol(sym, &hardregs[0]);
 	switch (expr->type)
 	{
 		case EXPR_SYMBOL:
 		{
 			declare_symbol(expr->symbol);
-			E("%s[1] = 1\n", luaname);
-			E("%s[2] = %s\n", luaname, show_symbol_mangled(expr->symbol));
+			cg->set_int(cg->pointer_zero_offset, &hardregs[1]);
+			cg->store(NULL, &hardregs[0], cg->pointer_zero_offset, &hardregs[1]);
+			cg->set_symbol(expr->symbol, &hardregs[1]);
+			cg->store(NULL, &hardregs[0], cg->pointer_zero_offset+1, &hardregs[1]);
 			break;
 		}
 
@@ -167,17 +172,23 @@ static void declare_symbol(struct symbol* sym)
 {
 	struct symbol* type = sym->ctype.base_type;
 	struct sinfo* sinfo = lookup_sinfo_of_symbol(sym);
-	const char* name = sinfo->name;
 
 	if (sinfo->declared)
 		return;
     sinfo->declared = 1;
 
+    zsetbuffer(ZBUFFER_HEADER);
+    cg->comment("symbol %s (%p), here=%d, static=%d\n",
+    		show_symbol_mangled(sym), sym,
+    		sinfo->here, !!(sym->ctype.modifiers & MOD_STATIC));
+    cg->declare(sym);
+
+	zsetbuffer(ZBUFFER_INITIALIZER);
     if (!sinfo->here)
     {
     	/* If extern, import the symbol. */
 
-    	E("local %s = _G.%s\n", name, name);
+    	cg->import(sym);
     }
     else
     {
@@ -185,12 +196,18 @@ static void declare_symbol(struct symbol* sym)
     	 * it yet).
     	 */
     	if (type->type != SYM_FN)
-    		E("local %s = {}\n", name);
+    		cg->create_storage(sym);
 
-		/* Anonymous objects get defined immediately. */
+		/* We need to manually define anonymous symbols because they're not
+		 * in the symbol list. */
 
 		if (sinfo->anonymous)
 			define_symbol(sym);
+
+	    /* Export the symbol if necessary. */
+
+		if (!(sym->ctype.modifiers & MOD_STATIC))
+			cg->export(sym);
     }
 }
 
@@ -210,11 +227,13 @@ static void define_symbol(struct symbol* sym)
 	{
 		case SYM_ARRAY:
 		case SYM_STRUCT:
+			zsetbuffer(ZBUFFER_INITIALIZER);
 			emit_array(sym);
 			break;
 
 		case SYM_BASETYPE:
 		case SYM_PTR:
+			zsetbuffer(ZBUFFER_INITIALIZER);
 			emit_scalar(sym);
 			break;
 
@@ -225,11 +244,9 @@ static void define_symbol(struct symbol* sym)
 			if (ep)
 			{
 			    compile_references_for_function(ep);
-			    zflush();
 				generate_ep(ep);
-				if (!(sym->ctype.modifiers & MOD_STATIC))
-					E("_G.%s = %s\n", name, name);
-				zflush();
+				zsetbuffer(ZBUFFER_FUNCTION);
+				zflush(ZBUFFER_CODE);
 			}
 			break;
 		}
@@ -239,85 +256,29 @@ static void define_symbol(struct symbol* sym)
 	}
 }
 
-/* Create storage for a symbol. This also lets us take account of all symbols
- * defined in this file, so we can distinguish them from imported ones. */
-
-static void create_storage_for_symbol(struct symbol* sym)
-{
-	struct symbol* type = sym->ctype.base_type;
-	if (!type)
-		return;
-
-	struct sinfo* sinfo = lookup_sinfo_of_symbol(sym);
-	const char* name = sinfo->name;
-
-	if (sinfo->created)
-		return;
-
-	sinfo->here = 1;
-    sinfo->declared = 1;
-    sinfo->created = 1;
-
-    if (type->type == SYM_FN)
-    {
-    	E("local %s\n", name);
-    }
-    else
-    {
-    	E("local %s = {}\n", name);
-		if (!(sym->ctype.modifiers & MOD_STATIC))
-			E("_G.%s = %s\n", name, name);
-    }
-}
-
 /* Compile all symbols in a list. */
 
 int compile_symbol_list(struct symbol_list *list)
 {
 	struct symbol *sym;
 
-	/* Expand all symbols. */
+	/* Expand all symbols, and mark all defined symbols as coming from here. */
 
 	FOR_EACH_PTR(list, sym)
 	{
 		expand_symbol(sym);
+
+		struct sinfo* sinfo = lookup_sinfo_of_symbol(sym);
+		sinfo->here = 1;
 	}
 	END_FOR_EACH_PTR(sym);
 
-	/* First, create storage for all defined symbols. */
+	/* Now, declare and define all symbols. */
 
 	FOR_EACH_PTR(list, sym)
 	{
-		create_storage_for_symbol(sym);
-	}
-	END_FOR_EACH_PTR(sym);
-
-	/* Now, define all functions. */
-
-	FOR_EACH_PTR(list, sym)
-	{
-		struct symbol* type = sym->ctype.base_type;
-		if (type && (type->type == SYM_FN))
-		{
-			define_symbol(sym);
-			zflush();
-		}
-	}
-	END_FOR_EACH_PTR(sym);
-
-	/* Now declare and compile everything else. This is done last to allow
-	 * initialisers to refer to function objects, which can't be forward
-	 * declared. */
-
-	FOR_EACH_PTR(list, sym)
-	{
-		expand_symbol(sym);
-		struct symbol* type = sym->ctype.base_type;
-		if (type && (type->type != SYM_FN))
-		{
-			define_symbol(sym);
-			zflush();
-		}
+		declare_symbol(sym);
+		define_symbol(sym);
 	}
 	END_FOR_EACH_PTR(sym);
 

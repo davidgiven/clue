@@ -37,6 +37,19 @@
 #define NUM_REGS 200
 #define MAX_ARGS 32
 
+/* Available output buffers. */
+
+enum
+{
+	ZBUFFER_STDOUT = -1,
+	ZBUFFER_CODE = 0,
+	ZBUFFER_FUNCTION,
+	ZBUFFER_FUNCTIONCODE,
+	ZBUFFER_HEADER,
+	ZBUFFER_INITIALIZER,
+	ZBUFFER__MAX
+};
+
 enum
 {
 	TYPE_NONE = 0,
@@ -104,22 +117,112 @@ struct sinfo
 	struct symbol* sym;
 	const char* name;                  /* mangled name */
 	unsigned here : 1;                 /* is this symbol defined in this file? */
-	unsigned created : 1;              /* have we created storage for this symbol? */
 	unsigned declared : 1;             /* has this symbol been declared? */
 	unsigned defined : 1;              /* has this symbol been defined? */
 	unsigned anonymous : 1;            /* is this symbol anonymous? */
 };
 
 
+extern struct hardreg stackbase_reg;
+extern struct hardreg stackoffset_reg;
+extern struct hardreg frameoffset_reg;
 extern struct hardreg hardregs[NUM_REGS];
+
+/* Represents a code generator backend. */
+
+struct codegenerator
+{
+	int pointer_zero_offset;
+
+	void (*comment)(const char* format, ...);
+
+	void (*declare)(struct symbol* sym);
+	void (*create_storage)(struct symbol* sym);
+	void (*import)(struct symbol* sym);
+	void (*export)(struct symbol* sym);
+
+	/* These functions will always be called in order (_arg and _reg may
+	 * be called multiple times).
+	 */
+	void (*function_prologue)(struct symbol* name);
+	void (*function_prologue_arg)(struct hardreg* reg);
+	void (*function_prologue_reg)(struct hardreg* reg);
+	void (*function_prologue_end)(void);
+
+	void (*function_epilogue)(void);
+
+	void (*bb_start)(struct basic_block* bb);
+	void (*bb_end_jump)(struct basic_block* target);
+	void (*bb_end_if_arith)(struct hardreg* cond,
+			struct basic_block* truetarget, struct basic_block* falsetarget);
+	void (*bb_end_if_ptr)(struct hardreg* cond,
+			struct basic_block* truetarget, struct basic_block* falsetarget);
+
+	void (*copy)(struct hardreg* src, struct hardreg* dest);
+	void (*load)(struct hardreg* simple, struct hardreg* base, int offset,
+			struct hardreg* dest);
+	void (*store)(struct hardreg* simple, struct hardreg* base, int offset,
+			struct hardreg* src);
+
+	void (*set_int)(long long int value, struct hardreg* dest);
+	void (*set_float)(long double value, struct hardreg* dest);
+	void (*set_symbol)(struct symbol* sym, struct hardreg* dest);
+
+	void (*toint)(struct hardreg* src, struct hardreg* dest);
+	void (*negate)(struct hardreg* src, struct hardreg* dest);
+	void (*add)(struct hardreg* src1, struct hardreg* src2, struct hardreg* dest);
+	void (*subtract)(struct hardreg* src1, struct hardreg* src2, struct hardreg* dest);
+	void (*multiply)(struct hardreg* src1, struct hardreg* src2, struct hardreg* dest);
+	void (*divide)(struct hardreg* src1, struct hardreg* src2, struct hardreg* dest);
+	void (*mod)(struct hardreg* src1, struct hardreg* src2, struct hardreg* dest);
+	void (*shl)(struct hardreg* src1, struct hardreg* src2, struct hardreg* dest);
+	void (*shr)(struct hardreg* src1, struct hardreg* src2, struct hardreg* dest);
+	void (*logand)(struct hardreg* src1, struct hardreg* src2, struct hardreg* dest);
+	void (*logor)(struct hardreg* src1, struct hardreg* src2, struct hardreg* dest);
+	void (*logxor)(struct hardreg* src1, struct hardreg* src2, struct hardreg* dest);
+	void (*booland)(struct hardreg* src1, struct hardreg* src2, struct hardreg* dest);
+	void (*boolor)(struct hardreg* src1, struct hardreg* src2, struct hardreg* dest);
+	void (*set_gt)(struct hardreg* src1, struct hardreg* src2, struct hardreg* dest);
+	void (*set_ge)(struct hardreg* src1, struct hardreg* src2, struct hardreg* dest);
+	void (*set_lt)(struct hardreg* src1, struct hardreg* src2, struct hardreg* dest);
+	void (*set_le)(struct hardreg* src1, struct hardreg* src2, struct hardreg* dest);
+	void (*set_eq)(struct hardreg* src1, struct hardreg* src2, struct hardreg* dest);
+	void (*set_ne)(struct hardreg* src1, struct hardreg* src2, struct hardreg* dest);
+
+	void (*select_arith)(struct hardreg* cond,
+			struct hardreg* dest1, struct hardreg* dest2,
+			struct hardreg* true1, struct hardreg* true2,
+			struct hardreg* false1, struct hardreg* false2);
+	void (*select_ptr)(struct hardreg* cond,
+			struct hardreg* dest1, struct hardreg* dest2,
+			struct hardreg* true1, struct hardreg* true2,
+			struct hardreg* false1, struct hardreg* false2);
+
+	/* These are always called in order (okay, one call_returning(), followe
+	 * by zero or more call_reg(), followed by call_end()).
+	 */
+	void (*call_returning_void)(struct hardreg* func);
+	void (*call_returning_arith)(struct hardreg* func, struct hardreg* dest);
+	void (*call_returning_ptr)(struct hardreg* func, struct hardreg* dest1,
+			struct hardreg* dest2);
+	void (*call_arg)(struct hardreg* arg);
+	void (*call_end)(void);
+
+	void (*return_void)(void);
+	void (*return_arith)(struct hardreg* arg);
+	void (*return_ptr)(struct hardreg* simple, struct hardreg* base);
+
+	void (*memcpy)(struct hardregref* src, struct hardregref* dest, int size);
+};
+
+extern const struct codegenerator* cg;
+extern const struct codegenerator cg_lua;
 
 extern const char* aprintf(const char* fmt, ...);
 extern void zprintf(const char* fmt, ...);
 extern void zvprintf(const char* fmt, va_list ap);
-extern void zflush(void);
-
-extern void E(const char* format, ...);
-extern void EC(const char* format, ...);
+extern void zflush(int output);
+extern void zsetbuffer(int buffer);
 
 extern void init_register_allocator(void);
 extern const char* show_hardreg(struct hardreg* reg);
