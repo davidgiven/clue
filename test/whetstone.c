@@ -14,13 +14,6 @@
 #include <string.h>
 #include <sys/time.h>
 
-void whetstones(long xtra, long x100, int calibrate);
-void pa(double e[4], double t, double t2);
-void po(double e1[4], long j, long k, long l);
-void p3(double *x, double *y, double *z, double t, double t1, double t2);
-void pout(char title[22], double ops, int type, double checknum,
-		double time, int calibrate, int section);
-
 static double loop_time[9];
 static double loop_mops[9];
 static double loop_mflops[9];
@@ -35,6 +28,91 @@ double dtime(void)
 	static struct timeval now;
 	gettimeofday(&now, NULL);
 	return (double)now.tv_sec + (double)now.tv_usec/1000000.0;
+}
+
+void pa(double e[4], double t, double t2)
+{
+	long j;
+	for (j = 0; j < 6; j++)
+	{
+		e[0] = (e[0] + e[1] + e[2] - e[3]) * t;
+		e[1] = (e[0] + e[1] - e[2] + e[3]) * t;
+		e[2] = (e[0] - e[1] + e[2] + e[3]) * t;
+		e[3] = (-e[0] + e[1] + e[2] + e[3]) / t2;
+	}
+
+	return;
+}
+
+void po(double e1[4], long j, long k, long l)
+{
+	e1[j] = e1[k];
+	e1[k] = e1[l];
+	e1[l] = e1[j];
+	return;
+}
+
+void p3(double *x, double *y, double *z, double t, double t1, double t2)
+{
+	*x = *y;
+	*y = *z;
+	*x = t * (*x + *y);
+	*y = t1 * (*x + *y);
+	*z = (*x + *y) / t2;
+	return;
+}
+
+void pout(char title[18], double ops, int type, double checknum, double time,
+		int calibrate, int section)
+{
+	double mops, mflops;
+
+	Check = Check + checknum;
+	loop_time[section] = time;
+	strcpy(headings[section], title);
+	TimeUsed = TimeUsed + time;
+	if (calibrate == 1)
+
+	{
+		results[section] = checknum;
+	}
+	if (calibrate == 0)
+	{
+		printf("%s %24.17f    ", headings[section], results[section]);
+
+		if (type == 1)
+		{
+			if (time > 0)
+			{
+				mflops = ops / (1000000L * time);
+			}
+			else
+			{
+				mflops = 0;
+			}
+			loop_mops[section] = 99999;
+			loop_mflops[section] = mflops;
+			printf(" %9.3f          %9.3f\n", loop_mflops[section],
+					loop_time[section]);
+		}
+		else
+		{
+			if (time > 0)
+			{
+				mops = ops / (1000000L * time);
+			}
+			else
+			{
+				mops = 0;
+			}
+			loop_mops[section] = mops;
+			loop_mflops[section] = 0;
+			printf("           %9.3f%9.3f\n", loop_mops[section],
+					loop_time[section]);
+		}
+	}
+
+	return;
 }
 
 void whetstones(long xtra, long x100, int calibrate)
@@ -231,91 +309,6 @@ void whetstones(long xtra, long x100, int calibrate)
 	timeb = dtime() - timea;
 	pout("N8 exp,sqrt etc. \0", (double) (n8 * 4) * (double) (xtra), 2, x,
 			timeb, calibrate, 8);
-
-	return;
-}
-
-void pa(double e[4], double t, double t2)
-{
-	long j;
-	for (j = 0; j < 6; j++)
-	{
-		e[0] = (e[0] + e[1] + e[2] - e[3]) * t;
-		e[1] = (e[0] + e[1] - e[2] + e[3]) * t;
-		e[2] = (e[0] - e[1] + e[2] + e[3]) * t;
-		e[3] = (-e[0] + e[1] + e[2] + e[3]) / t2;
-	}
-
-	return;
-}
-
-void po(double e1[4], long j, long k, long l)
-{
-	e1[j] = e1[k];
-	e1[k] = e1[l];
-	e1[l] = e1[j];
-	return;
-}
-
-void p3(double *x, double *y, double *z, double t, double t1, double t2)
-{
-	*x = *y;
-	*y = *z;
-	*x = t * (*x + *y);
-	*y = t1 * (*x + *y);
-	*z = (*x + *y) / t2;
-	return;
-}
-
-void pout(char title[18], double ops, int type, double checknum, double time,
-		int calibrate, int section)
-{
-	double mops, mflops;
-
-	Check = Check + checknum;
-	loop_time[section] = time;
-	strcpy(headings[section], title);
-	TimeUsed = TimeUsed + time;
-	if (calibrate == 1)
-
-	{
-		results[section] = checknum;
-	}
-	if (calibrate == 0)
-	{
-		printf("%s %24.17f    ", headings[section], results[section]);
-
-		if (type == 1)
-		{
-			if (time > 0)
-			{
-				mflops = ops / (1000000L * time);
-			}
-			else
-			{
-				mflops = 0;
-			}
-			loop_mops[section] = 99999;
-			loop_mflops[section] = mflops;
-			printf(" %9.3f          %9.3f\n", loop_mflops[section],
-					loop_time[section]);
-		}
-		else
-		{
-			if (time > 0)
-			{
-				mops = ops / (1000000L * time);
-			}
-			else
-			{
-				mops = 0;
-			}
-			loop_mops[section] = mops;
-			loop_mflops[section] = 0;
-			printf("           %9.3f%9.3f\n", loop_mops[section],
-					loop_time[section]);
-		}
-	}
 
 	return;
 }
