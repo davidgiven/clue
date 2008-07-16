@@ -38,50 +38,13 @@ static void generate_bb_list(struct basic_block_list *list,
 
 static int stacksize;
 
-/* Emit a line to the zbuffer. */
+/* Copy a hardreg into another hardreg. */
 
-void E(const char* format, ...)
+static void copy_hardregref(struct hardregref* src, struct hardregref* dest)
 {
-	va_list ap;
-	va_start(ap, format);
-	zvprintf(format, ap);
-	va_end(ap);
-}
-
-/* Emit a line of debug info to the zbuffer. */
-
-void EC(const char* format, ...)
-{
-	if (verbose)
-	{
-		va_list ap;
-		va_start(ap, format);
-		zvprintf(format, ap);
-		va_end(ap);
-	}
-}
-
-/* Copy a hardreg. */
-
-static void cg_copy_hardreg(struct hardreg* src, struct hardreg* dest)
-{
-	if (src != dest)
-		E("%s = %s\n", show_hardreg(dest), show_hardreg(src));
-}
-
-/* Do a structure copy from one location to another. */
-
-static void cg_memcpy(struct hardregref* src, struct hardregref* dest, int size)
-{
-	assert(src->type == TYPE_PTR);
-	assert(dest->type == TYPE_PTR);
-
-	E("_memcpy(sp, stack, %s, %s, %s, %s, %d)\n",
-			show_hardreg(dest->simple),
-			show_hardreg(dest->base),
-			show_hardreg(src->simple),
-			show_hardreg(src->base),
-			size);
+	cg->copy(src->simple, dest->simple);
+	if (dest->type == TYPE_PTR)
+		cg->copy(src->base, dest->base);
 }
 
 /* Load data into memory. */
@@ -95,7 +58,7 @@ static void generate_load(struct instruction *insn, struct bb_state *state)
 			/* Ignore structure loads: all the logic for these happens in the
 			 * store instruction.
 			 */
-			EC("-- structure load nop\n");
+			cg->comment("structure load nop\n");
 			break;
 		}
 
@@ -109,18 +72,9 @@ static void generate_load(struct instruction *insn, struct bb_state *state)
 
 			assert(address.type == TYPE_PTR);
 
-			E("%s = %s[%s + %d]\n",
-					show_hardreg(dest.simple),
-					show_hardreg(address.base),
-					show_hardreg(address.simple),
-					insn->offset);
-
+			cg->load(address.simple, address.base, insn->offset, dest.simple);
 			if (dest.type == TYPE_PTR)
-				E("%s = %s[%s + %d]\n",
-						show_hardreg(dest.base),
-						show_hardreg(address.base),
-						show_hardreg(address.simple),
-						insn->offset + 1);
+				cg->load(address.simple, address.base, insn->offset+1, dest.base);
 		}
 	}
 }
@@ -155,11 +109,11 @@ static void generate_store(struct instruction *insn, struct bb_state *state)
 			struct hardregref dest;
 			find_hardregref(&dest, insn->src);
 
-			EC("-- structure copy from %s to %s size %d\n",
+			cg->comment("structure copy from %s to %s size %d\n",
 					show_hardregref(&src), show_hardregref(&dest),
 					bits_to_bytes(insn->size));
 
-			cg_memcpy(&src, &dest, bits_to_bytes(insn->size));
+			cg->memcpy(&src, &dest, bits_to_bytes(insn->size));
 			break;
 		}
 
@@ -173,20 +127,43 @@ static void generate_store(struct instruction *insn, struct bb_state *state)
 
 			assert(address.type == TYPE_PTR);
 
-			E("%s[%s + %d] = %s\n",
-					show_hardreg(address.base),
-					show_hardreg(address.simple),
-					insn->offset,
-					show_hardreg(src.simple));
-
+			cg->store(address.simple, address.base, insn->offset, src.simple);
 			if (src.type == TYPE_PTR)
-				E("%s[%s + %d] = %s\n",
-						show_hardreg(address.base),
-						show_hardreg(address.simple),
-						insn->offset + 1,
-						show_hardreg(src.base));
+				cg->store(address.simple, address.base, insn->offset+1, src.base);
 		}
 	}
+}
+
+/* Ensure a symbol is correctly stacked, if necessary. */
+
+static int check_symbol_stackage(pseudo_t pseudo)
+{
+	assert(pseudo->type == PSEUDO_SYM);
+
+	struct pinfo* pinfo = lookup_pinfo_of_pseudo(pseudo);
+
+	if (!pinfo->stacked)
+	{
+		/* Check to see whether this symbol lives on the stack,
+		 * and if so lazily allocate it a slot.
+		 */
+
+		struct symbol *sym = pseudo->sym;
+		if ((sym->ctype.modifiers &
+				(MOD_EXTERN | MOD_TOPLEVEL | MOD_STATIC)))
+			return 0;
+
+		/* This symbol lives on the stack. We assign them lazily. */
+
+		int size = bits_to_bytes(sym->bit_size);
+		cg->comment("allocating %d bytes on stack for %s\n", size,
+				show_symbol_mangled(sym));
+		pinfo->stacked = 1;
+		pinfo->stackoffset = stacksize;
+		stacksize += size;
+	}
+
+	return pinfo->stacked;
 }
 
 /* Load a pseudo into a register. */
@@ -196,36 +173,20 @@ static void emit_load(struct hardregref* dest, pseudo_t pseudo)
 	switch (pseudo->type)
 	{
 		case PSEUDO_VOID:
-			EC("-- ignoring --- void\n");
+			cg->comment("ignoring --- void\n");
 			break;
 
 		case PSEUDO_VAL:
-			E("%s = %lld\n", show_hardreg(dest->simple),
-					pseudo->value);
+			cg->set_int(pseudo->value, dest->simple);
 			break;
 
 		case PSEUDO_ARG:
 		{
 			struct pinfo* pinfo = lookup_pinfo_of_pseudo(pseudo);
 
-			if (pinfo->stacked)
-			{
-				E("%s = stack[fp + %d]\n",
-						show_hardreg(dest->simple),
-						pinfo->stackoffset);
-
-				if (dest->type == TYPE_PTR)
-					E("%s = stack[fp + %d]\n",
-							show_hardreg(dest->base),
-							pinfo->stackoffset + 1);
-			}
-			else
-			{
-				assert(pinfo->reg.type);
-				cg_copy_hardreg(pinfo->reg.simple, dest->simple);
-				if (dest->type == TYPE_PTR)
-					cg_copy_hardreg(pinfo->reg.base, dest->base);
-			}
+			assert(!pinfo->stacked);
+			assert(pinfo->reg.type);
+			copy_hardregref(&pinfo->reg, dest);
 			break;
 		}
 
@@ -234,61 +195,30 @@ static void emit_load(struct hardregref* dest, pseudo_t pseudo)
 			struct hardregref src;
 			create_hardregref(&src, pseudo);
 
-			E("%s = %s\n",
-					show_hardreg(dest->simple), show_hardreg(src.simple));
-			if (src.type == TYPE_PTR)
-				E("%s = %s\n",
-						show_hardreg(dest->base), show_hardreg(src.base));
+			copy_hardregref(&src, dest);
 			break;
 		}
+
 		case PSEUDO_SYM:
 		{
 			struct pinfo* pinfo = lookup_pinfo_of_pseudo(pseudo);
 
-			if (pinfo->stacked)
+			if (check_symbol_stackage(pseudo))
 			{
-				/* This symbol is on the stack. */
-
-			stacked:
-				E("%s = stack\n", show_hardreg(dest->base));
-				E("%s = fp + %d\n", show_hardreg(dest->simple),
-						pinfo->stackoffset);
+				cg->copy(&stackbase_reg, dest->base);
+				cg->set_int(pinfo->stackoffset, dest->simple);
+				cg->add(&frameoffset_reg, dest->simple, dest->simple);
 			}
 			else
 			{
-				/* Check to see whether this symbol lives on the stack,
-				 * and if so lazily allocate it a slot.
-				 */
-				struct symbol *sym = pseudo->sym;
-				if (!(sym->ctype.modifiers &
-						(MOD_EXTERN | MOD_TOPLEVEL | MOD_STATIC)))
-				{
-					/* This symbol lives on the stack. We assign them lazily. */
-
-					int size = bits_to_bytes(sym->bit_size);
-					EC("-- allocating %d bytes on stack for %s\n", size,
-							show_symbol_mangled(sym));
-					pinfo->stacked = 1;
-					pinfo->stackoffset = stacksize;
-					stacksize += size;
-					goto stacked;
-				}
-
 				/* This symbol is a global. */
 
 				if (dest->type == TYPE_FNPTR)
-				{
-					E("%s = %s\n",
-							show_hardreg(dest->simple),
-							show_symbol_mangled(sym));
-				}
+					cg->set_symbol(pseudo->sym, dest->simple);
 				else
 				{
-					E("%s = %s\n",
-							show_hardreg(dest->base),
-							show_symbol_mangled(sym));
-					E("%s = 1\n",
-							show_hardreg(dest->simple));
+					cg->set_symbol(pseudo->sym, dest->base);
+					cg->set_int(cg->pointer_zero_offset, dest->simple);
 				}
 			}
 			break;
@@ -316,22 +246,20 @@ static void generate_setval(struct instruction *insn, struct bb_state *state)
 		{
 			case TYPE_PTR:
 				assert(expr->value == 0);
-				E("%s = nil\n", show_hardreg(dest.simple));
-				E("%s = nil\n", show_hardreg(dest.base));
+				cg->set_symbol(NULL, dest.base);
+				cg->set_int(cg->pointer_zero_offset, dest.simple);
 				break;
 
 			default:
 			{
-				const char* dests = show_hardreg(dest.simple);
-
 				switch (expr->type)
 				{
 					case EXPR_VALUE:
-						E("%s = %lld\n", dests, expr->value);
+						cg->set_int(expr->value, dest.simple);
 						break;
 
 					case EXPR_FVALUE:
-						E("%s = %llf\n", dests, expr->fvalue);
+						cg->set_float(expr->fvalue, dest.simple);
 						break;
 
 					default:
@@ -349,24 +277,18 @@ static void generate_cast(struct instruction *insn, struct bb_state *state)
 {
 	struct hardregref src;
 	find_hardregref(&src, insn->src);
-	const char* srcs = show_hardreg(src.simple);
 
 	struct hardregref dest;
 	create_hardregref(&dest, insn->target);
-	const char* dests = show_hardreg(dest.simple);
 
-	EC("-- cast from %d to %d\n", src.type, dest.type);
+	cg->comment("cast from %d to %d\n", src.type, dest.type);
 
 	if ((src.type == TYPE_FLOAT) && (dest.type == TYPE_INT))
-		E("%s = int(%s)\n", dests, srcs);
+		cg->toint(src.simple, dest.simple);
 	else if ((src.type == TYPE_INT) && (dest.type == TYPE_FLOAT))
-		E("%s = %s\n", dests, srcs);
+		cg->copy(src.simple, dest.simple);
 	else if (src.type == dest.type)
-	{
-		E("%s = %s\n", dests, srcs);
-		if (src.type == TYPE_PTR)
-			E("%s = %s\n", show_hardreg(dest.base), show_hardreg(src.base));
-	}
+		copy_hardregref(&src, &dest);
 	else
 	{
 		sparse_error(insn->src->def->pos,
@@ -394,38 +316,45 @@ static void generate_triop(struct instruction *insn, struct bb_state *state)
 	{
 		case OP_SEL:
 		{
+			void (*select)(struct hardreg* cond,
+					struct hardreg* dest1, struct hardreg* dest2,
+					struct hardreg* true1, struct hardreg* true2,
+					struct hardreg* false1, struct hardreg* false2);
+			struct hardreg* cond;
+
 			switch (src1.type)
 			{
 				case TYPE_PTR:
-					E("if %s then ", show_hardreg(src1.base));
+					select = cg->select_ptr;
+					cond = src1.base;
 					break;
 
 				case TYPE_FNPTR:
-					E("if %s then ", show_hardreg(src1.simple));
+					select = cg->select_ptr;
+					cond = src1.simple;
 					break;
 
 				default:
-					E("if %s ~= 0 then ", show_hardreg(src1.simple));
+					select = cg->select_arith;
+					cond = src1.simple;
 			}
 
 			switch (dest.type)
 			{
 				case TYPE_PTR:
-					E("%s = %s %s = %s else %s = %s %s = %s",
-							show_hardreg(dest.simple), show_hardreg(src2.simple),
-							show_hardreg(dest.base), show_hardreg(src2.base),
-							show_hardreg(dest.simple), show_hardreg(src3.simple),
-							show_hardreg(dest.base), show_hardreg(src3.base));
+					select(cond,
+							dest.simple, dest.base,
+							src2.simple, src2.base,
+							src3.simple, src3.base);
 					break;
 
 				default:
-					E("%s = %s else %s = %s",
-							show_hardreg(dest.simple), show_hardreg(src2.simple),
-							show_hardreg(dest.simple), show_hardreg(src3.simple));
+					select(cond,
+							dest.simple, NULL,
+							src2.simple, NULL,
+							src3.simple, NULL);
 					break;
 			}
-
-			E(" end\n");
 			break;
 		}
 
@@ -444,9 +373,6 @@ static void generate_binop(struct instruction *insn, struct bb_state *state)
 	find_hardregref(&src1, insn->src1);
 	find_hardregref(&src2, insn->src2);
 
-	const char* src1s = show_hardreg(src1.simple);
-	const char* src2s = show_hardreg(src2.simple);
-
 	struct hardregref dest;
 
 	/* These instructions can operate on either pointers or integers, and
@@ -457,17 +383,17 @@ static void generate_binop(struct instruction *insn, struct bb_state *state)
 			if (src1.type == TYPE_PTR)
 			{
 				clone_ptr_hardregref(&src1, &dest, insn->target);
-				cg_copy_hardreg(src1.base, dest.base);
+				cg->copy(src1.base, dest.base);
 			}
 			else if (src2.type == TYPE_PTR)
 			{
 				clone_ptr_hardregref(&src2, &dest, insn->target);
-				cg_copy_hardreg(src2.base, dest.base);
+				cg->copy(src2.base, dest.base);
 			}
 			else
 				create_hardregref(&dest, insn->target);
 
-			E("%s = %s + %s\n", show_hardreg(dest.simple), src1s, src2s);
+			cg->add(src1.simple, src2.simple, dest.simple);
 			return;
 
 		case OP_SUB:
@@ -476,7 +402,7 @@ static void generate_binop(struct instruction *insn, struct bb_state *state)
 			else
 				create_hardregref(&dest, insn->target);
 
-			E("%s = %s - %s\n", show_hardreg(dest.simple), src1s, src2s);
+			cg->subtract(src1.simple, src2.simple, dest.simple);
 			return;
 	}
 
@@ -486,83 +412,81 @@ static void generate_binop(struct instruction *insn, struct bb_state *state)
 	assert(src2.type != TYPE_PTR);
 
 	create_hardregref(&dest, insn->target);
-	const char* dests = show_hardreg(dest.simple);
 
 	switch (insn->opcode)
 	{
 		case OP_MULU:
 		case OP_MULS:
-			E("%s = %s * %s\n", dests, src1s, src2s);
+			cg->multiply(src1.simple, src2.simple, dest.simple);
 			break;
 
 		case OP_AND:
-			E("%s = logand(%s, %s)\n", dests, src1s, src2s);
+			cg->logand(src1.simple, src2.simple, dest.simple);
 			break;
 
 		case OP_OR:
-			E("%s = logor(%s, %s)\n", dests, src1s, src2s);
+			cg->logor(src1.simple, src2.simple, dest.simple);
 			break;
 
 		case OP_XOR:
-			E("%s = logxor(%s, %s)\n", dests, src1s, src2s);
+			cg->logxor(src1.simple, src2.simple, dest.simple);
 			break;
 
 		case OP_AND_BOOL:
-			E("%s = booland(%s, %s)\n", dests, src1s, src2s);
+			cg->booland(src1.simple, src2.simple, dest.simple);
 			break;
 
 		case OP_OR_BOOL:
-			E("%s = boolor(%s, %s)\n", dests, src1s, src2s);
+			cg->boolor(src1.simple, src2.simple, dest.simple);
 			break;
 
 		case OP_DIVU:
 		case OP_DIVS:
-			if ((src1.type == TYPE_FLOAT) || (src2.type == TYPE_FLOAT))
-				E("%s = %s / %s\n", dests, src1s, src2s);
-			else
-				E("%s = int(%s / %s)\n", dests, src1s, src2s);
+			cg->divide(src1.simple, src2.simple, dest.simple);
+			if ((src1.type != TYPE_FLOAT) && (src2.type != TYPE_FLOAT))
+				cg->toint(dest.simple, dest.simple);
 			break;
 
 		case OP_MODU:
 		case OP_MODS:
-			E("%s = %s %% %s\n", dests, src1s, src2s);
+			cg->mod(src1.simple, src2.simple, dest.simple);
 			break;
 
 		case OP_SHL:
-			E("%s = shl(%s, %s)\n", dests, src1s, src2s);
+			cg->shl(src1.simple, src2.simple, dest.simple);
 			break;
 
 		case OP_LSR:
 		case OP_ASR:
-			E("%s = shr(%s, %s)\n", dests, src1s, src2s);
+			cg->shr(src1.simple, src2.simple, dest.simple);
 			break;
 
 		case OP_SET_GT:
 		case OP_SET_A:
-			E("%s = (%s > %s) and 1 or 0\n", dests, src1s, src2s);
+			cg->set_gt(src1.simple, src2.simple, dest.simple);
 			break;
 
 		case OP_SET_LT:
 		case OP_SET_B:
-			E("%s = (%s < %s) and 1 or 0\n", dests, src1s, src2s);
+			cg->set_lt(src1.simple, src2.simple, dest.simple);
 			break;
 
 		case OP_SET_GE:
 		case OP_SET_AE:
-			E("%s = (%s >= %s) and 1 or 0\n", dests, src1s, src2s);
+			cg->set_ge(src1.simple, src2.simple, dest.simple);
 			break;
 
 		case OP_SET_LE:
 		case OP_SET_BE:
-			E("%s = (%s <= %s) and 1 or 0\n", dests, src1s, src2s);
+			cg->set_le(src1.simple, src2.simple, dest.simple);
 			break;
 
 		case OP_SET_EQ:
-			E("%s = (%s == %s) and 1 or 0\n", dests, src1s, src2s);
+			cg->set_eq(src1.simple, src2.simple, dest.simple);
 			break;
 
 		case OP_SET_NE:
-			E("%s = (%s ~= %s) and 1 or 0\n", dests, src1s, src2s);
+			cg->set_ne(src1.simple, src2.simple, dest.simple);
 			break;
 	}
 }
@@ -571,40 +495,56 @@ static void generate_binop(struct instruction *insn, struct bb_state *state)
 
 static void generate_uniop(struct instruction *insn, struct bb_state *state)
 {
-	struct hardregref src;
-	struct hardregref dest;
-
-	find_hardregref(&src, insn->src);
-	create_hardregref(&dest, insn->target);
-
-	const char* srcs = show_hardreg(src.simple);
-	const char* dests = show_hardreg(dest.simple);
-
 	switch (insn->opcode)
 	{
 		case OP_NEG:
-			E("%s = -%s\n", dests, srcs);
+		{
+			struct hardregref dest;
+			create_hardregref(&dest, insn->target);
+
+			struct hardregref src;
+			find_hardregref(&src, insn->src);
+
+			cg->negate(src.simple, dest.simple);
 			break;
+		}
 
 		case OP_COPY:
-			cg_copy_hardreg(src.simple, dest.simple);
-			/* The TYPE_STRUCT here is a special case to deal with rewritten
-			 * structure load instructs from rewrite.c --- it's easier to
-			 * bodge the wrong type than to get the types right.
-			 */
-			if ((dest.type == TYPE_PTR) || (dest.type == TYPE_STRUCT))
-				cg_copy_hardreg(src.base, dest.base);
-			break;
+		{
+			if (insn->src->type == PSEUDO_SYM)
+			{
+				if (check_symbol_stackage(insn->src))
+				{
+					/* This symbol is on the stack, so we can use an optimised
+					 * way of calculating the pointer.
+					 */
+					struct pinfo* pinfo = lookup_pinfo_of_pseudo(insn->src);
 
-#if 0
-		case OP_PHISOURCE:
-		case OP_COPY:
-			E("%s = %s\n", dests, srcs);
-			if (src.type == TYPE_PTR)
-				E("%s = %s\n", show_hardreg(src.base),
-						show_hardreg(dest.base));
+					struct hardregref src;
+					src.type = TYPE_PTR;
+					src.simple = &frameoffset_reg;
+					src.base = &stackbase_reg;
+
+					struct hardregref dest;
+					clone_ptr_hardregref(&src, &dest, insn->target);
+					if (pinfo->stackoffset > 0)
+					{
+						cg->set_int(pinfo->stackoffset, dest.simple);
+						cg->add(src.simple, dest.simple, dest.simple);
+					}
+					else
+						cg->copy(src.simple, dest.simple);
+					return;
+				}
+			}
+
+			struct hardregref dest;
+			create_hardregref(&dest, insn->target);
+
+			emit_load(&dest, insn->src);
 			break;
-#endif
+		}
+
 		default:
 			assert(0);
 	}
@@ -614,21 +554,18 @@ static void generate_uniop(struct instruction *insn, struct bb_state *state)
 
 static void generate_ret(struct instruction *insn, struct bb_state *state)
 {
-	E("do return");
 	if (insn->src && (insn->src->type != PSEUDO_VOID))
 	{
 		struct hardregref src;
-
 		find_hardregref(&src, insn->src);
 
 		if (src.type == TYPE_PTR)
-			E(" %s, %s",
-					show_hardreg(src.simple),
-					show_hardreg(src.base));
+			cg->return_ptr(src.simple, src.base);
 		else
-			E(" %s", show_hardreg(src.simple));
+			cg->return_arith(src.simple);
 	}
-	E(" end\n");
+	else
+		cg->return_void();
 }
 
 /* Call a function. */
@@ -646,12 +583,15 @@ static void generate_call(struct instruction *insn, struct bb_state *state)
 	{
 		create_hardregref(&target, insn->target);
 		if (target.type == TYPE_PTR)
-			E("%s, %s = ", show_hardreg(target.simple), show_hardreg(target.base));
+			cg->call_returning_ptr(function.simple, target.simple, target.base);
 		else
-			E("%s = ", show_hardreg(target.simple));
+			cg->call_returning_arith(function.simple, target.simple);
 	}
+	else
+		cg->call_returning_void(function.simple);
 
-	E("%s(sp, stack", show_hardreg(function.simple));
+	cg->call_arg(&stackoffset_reg);
+	cg->call_arg(&stackbase_reg);
 
 	pseudo_t arg;
 	FOR_EACH_PTR(insn->arguments, arg)
@@ -659,15 +599,13 @@ static void generate_call(struct instruction *insn, struct bb_state *state)
 		struct hardregref hrf;
 		find_hardregref(&hrf, arg);
 
+		cg->call_arg(hrf.simple);
 		if (hrf.type == TYPE_PTR)
-			E(", %s, %s", show_hardreg(hrf.simple),
-					show_hardreg(hrf.base));
-		else
-			E(", %s", show_hardreg(hrf.simple));
+			cg->call_arg(hrf.base);
 	}
 	END_FOR_EACH_PTR(arg);
 
-	E(")\n");
+	cg->call_end();
 }
 
 /* Generate a branch, conditional or otherwise. */
@@ -677,39 +615,27 @@ static void generate_branch(struct instruction *insn, struct bb_state *state)
 	if (insn->cond)
 	{
 		struct hardregref hrf;
-
 		find_hardregref(&hrf, insn->cond);
+
 		switch (hrf.type)
 		{
 			case TYPE_PTR:
-				E("if %s then __GOTO = 0x%08x else __GOTO = 0x%08x end\n",
-						show_hardreg(hrf.base), insn->bb_true, insn->bb_false);
+				cg->bb_end_if_ptr(hrf.base, insn->bb_true, insn->bb_false);
 				break;
 
 			default:
-				E("if %s ~= 0 then __GOTO = 0x%08x else __GOTO = 0x%08x end\n",
-						show_hardreg(hrf.simple), insn->bb_true, insn->bb_false);
+				cg->bb_end_if_arith(hrf.simple, insn->bb_true, insn->bb_false);
 				break;
 		}
 	}
 	else
-		zprintf("__GOTO = 0x%08x\n", insn->bb_true);
+		cg->bb_end_jump(insn->bb_true);
 }
 
 /* Generate a phisrc instruction --- turns into a copy. */
 
 static void generate_phisrc(struct instruction *insn, struct bb_state *state)
 {
-#if 0
-	struct operand* src = get_source_operand(state, insn->phi_src);
-	if (!src)
-	{
-		EC("-- src is void, omitting instruction\n");
-		return;
-	}
-#endif
-
-//	int count = 0;
 	struct instruction* phi;
 	FOR_EACH_PTR(insn->phi_users, phi)
 	{
@@ -717,34 +643,15 @@ static void generate_phisrc(struct instruction *insn, struct bb_state *state)
 		create_hardregref(&dest, phi->target);
 
 		emit_load(&dest, insn->phi_src);
-
-//		count++;
 	}
 	END_FOR_EACH_PTR(phi);
-
-	//assert(count == 1);
-#if 0
-	struct instruction* phi;
-	FOR_EACH_PTR(insn->phi_users, phi)
-	{
-		struct operand* dest = get_dest_operand(state, phi->target);
-
-		zprintf("%s = %s\n", render_simple_operand(dest),
-				render_simple_operand(src));
-
-		put_pseudo_in_hardreg(state, insn->phi_src, dest->reg);
-
-		release_operand(state, dest);
-	}
-	END_FOR_EACH_PTR(phi);
-#endif
 }
 
 /* Generate code for a single instruction. */
 
 static void generate_one_insn(struct instruction* insn, struct bb_state* state)
 {
-	EC("-- INSN: %s\n", show_instruction(insn));
+	cg->comment("INSN: %s\n", show_instruction(insn));
 
 	switch (insn->opcode)
 	{
@@ -891,7 +798,6 @@ static void generate_one_insn(struct instruction* insn, struct bb_state* state)
 		default:
 			printf("unimplemented: %s\n", show_instruction(insn));
 			assert(0);
-			E("unimplemented: %s\n", show_instruction(insn));
 			break;
 	}
 
@@ -913,7 +819,7 @@ static void connect_storage_list(struct storage_hash_list* list)
 			ref_hardregref(&pinfo->wire);
 			put_pseudo_in_hardregref(entry->pseudo, &pinfo->wire);
 
-			EC("-- import/export pseudo %s ==> hardregref %s\n",
+			cg->comment("import/export pseudo %s ==> hardregref %s\n",
 					show_pseudo(entry->pseudo), show_hardregref(&pinfo->reg));
 		}
 	}
@@ -944,7 +850,7 @@ static void generate_bb(struct basic_block *bb, struct bb_state *state)
 	connect_storage_list(state->inputs);
 	connect_storage_list(state->outputs);
 
-	E("__LABEL = 0x%08x\n", (int) bb);
+	cg->bb_start(bb);
 
 	struct instruction* insn;
 	FOR_EACH_PTR(bb->insns, insn)
@@ -958,24 +864,22 @@ static void generate_bb(struct basic_block *bb, struct bb_state *state)
 #if 1
 	{
 		struct storage_hash *entry;
-		EC("--- in ---\n");
+		cg->comment("--- in ---\n");
 		FOR_EACH_PTR(state->inputs, entry) {
-			EC("-- %s (%p) <- %s (%p)\n", show_pseudo(entry->pseudo), entry->pseudo,
+			cg->comment("%s (%p) <- %s (%p)\n", show_pseudo(entry->pseudo), entry->pseudo,
 					show_storage(entry->storage), entry->storage);
 		} END_FOR_EACH_PTR(entry);
-		EC("--- spill ---\n");
+		cg->comment("--- spill ---\n");
 		FOR_EACH_PTR(state->internal, entry) {
-			EC("-- %s <-> %s\n", show_pseudo(entry->pseudo),  show_storage(entry->storage));
+			cg->comment("%s <-> %s\n", show_pseudo(entry->pseudo),  show_storage(entry->storage));
 		} END_FOR_EACH_PTR(entry);
-		EC("--- out ---\n");
+		cg->comment("--- out ---\n");
 		FOR_EACH_PTR(state->outputs, entry) {
-			EC("-- %s (%p) -> %s (%p)\n", show_pseudo(entry->pseudo), entry->pseudo,
+			cg->comment("%s (%p) -> %s (%p)\n", show_pseudo(entry->pseudo), entry->pseudo,
 					show_storage(entry->storage), entry->storage);
 		} END_FOR_EACH_PTR(entry);
 	}
 #endif
-
-	E("\n");
 }
 
 /* Mark all the output registers of all the parents
@@ -1073,29 +977,12 @@ static void wire_up_arguments(struct entrypoint* ep, struct basic_block* bb)
 	FOR_EACH_PTR(entry->arg_list, arg)
 	{
 		struct pinfo* pinfo = lookup_pinfo_of_pseudo(arg);
-		int size = bits_to_bytes(pinfo->size);
 
-		if (declaredarg && !(declaredarg->ctype.modifiers & MOD_ADDRESSABLE))
-		{
-			/* Put this argument in a register. */
+		pinfo->stacked = 0;
+		create_hardregref(&pinfo->wire, arg);
 
-			pinfo->stacked = 0;
-			create_hardregref(&pinfo->wire, arg);
-
-			printf("-- arg %s in hardregref %s\n", show_pseudo(arg),
-					show_hardregref(&pinfo->wire));
-		}
-		else
-		{
-			/* Otherwise stack it. */
-
-			pinfo->stacked = 1;
-			pinfo->stackoffset = stacksize;
-			stacksize += size;
-
-			printf("-- arg %s on stack at offset %d, size %d\n", show_pseudo(arg),
-					pinfo->stackoffset, size);
-		}
+		cg->comment("arg %s in hardregref %s\n", show_pseudo(arg),
+				show_hardregref(&pinfo->wire));
 
 		NEXT_PTR_LIST(declaredarg);
 	}
@@ -1109,8 +996,6 @@ static void generate_function_body(struct entrypoint* ep)
 {
 	/* Write out the function header. */
 
-	printf("%s = function(fp, stack", show_symbol_mangled(ep->name));
-
 	struct instruction* entry = ep->entry;
 
 	int count = 0;
@@ -1123,48 +1008,41 @@ static void generate_function_body(struct entrypoint* ep)
 	}
 	END_FOR_EACH_PTR(arg);
 
+	zsetbuffer(ZBUFFER_FUNCTION);
+	cg->function_prologue(ep->name);
+
 	int i;
+	cg->function_prologue_arg(&frameoffset_reg);
+	cg->function_prologue_arg(&stackbase_reg);
 	for (i = 0; i<count; i++)
-		printf(", H%d", i);
-
-	printf(")\n");
-
-	/* Adjust stack, and put all arguments onto it. */
-
-	printf("local sp = fp + %d\n", stacksize);
-	i = 0;
-	FOR_EACH_PTR(entry->arg_list, arg)
-	{
-		struct pinfo* pinfo = lookup_pinfo_of_pseudo(arg);
-		int size = bits_to_bytes(pinfo->size);
-
-		if (pinfo->stacked)
-		{
-			int j;
-			for (j = 0; j < size; j++)
-				printf("stack[fp + %d] = H%d\n",
-						pinfo->stackoffset+j, i+j);
-		}
-
-		i += size;
-	}
-	END_FOR_EACH_PTR(arg);
+		cg->function_prologue_arg(&hardregs[i]);
 
 	/* Declare all used registers. Registers that were used for argument
 	 * passing are automatically local. */
 
+	cg->function_prologue_reg(&stackoffset_reg);
 	for (i = count; i < NUM_REGS; i++)
 	{
 		struct hardreg* reg = &hardregs[i];
 		if (reg->touched)
-			printf("local %s\n", show_hardreg(reg));
+			cg->function_prologue_reg(reg);
 	}
+
+	cg->function_prologue_end();
+
+	/* Adjust stack. */
+
+	cg->set_int(stacksize, &stackoffset_reg);
+	cg->add(&frameoffset_reg, &stackoffset_reg, &stackoffset_reg);
 
 	/* Emit the actual function code. */
 
-	zflush();
+	zsetbuffer(ZBUFFER_FUNCTIONCODE);
+	zflush(ZBUFFER_FUNCTION);
 
-	printf("end\n\n");
+	zsetbuffer(ZBUFFER_FUNCTION);
+
+	cg->function_epilogue();
 }
 
 /* Main code generation entrypoint: generate all code for the specified ep.
@@ -1173,6 +1051,8 @@ static void generate_function_body(struct entrypoint* ep)
 
 void generate_ep(struct entrypoint *ep)
 {
+	zsetbuffer(ZBUFFER_FUNCTIONCODE);
+
 	/* Mark all hardregs as untouched, so we can keep track of which ones
 	 * were used. */
 

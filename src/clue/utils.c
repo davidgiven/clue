@@ -19,8 +19,14 @@ struct zprintnode
 	char* value;
 };
 
-static struct zprintnode* zfirst = NULL;
-static struct zprintnode* zlast = NULL;
+struct zbuffer
+{
+	struct zprintnode* zfirst;
+	struct zprintnode* zlast;
+};
+
+static struct zbuffer zbuffers[ZBUFFER__MAX];
+static struct zbuffer* currentbuffer = &zbuffers[ZBUFFER_CODE];
 
 const char* show_value(struct expression* expr)
 {
@@ -59,30 +65,51 @@ void zprintf(const char* format, ...)
 
 void zvprintf(const char* format, va_list ap)
 {
-	struct zprintnode* node = malloc(sizeof(struct zprintnode));
-	node->next = NULL;
-	vasprintf(&node->value, format, ap);
+	if (!currentbuffer)
+		vprintf(format, ap);
+	else
+	{
+		struct zprintnode* node = malloc(sizeof(struct zprintnode));
+		node->next = NULL;
+		vasprintf(&node->value, format, ap);
 
-	if (zlast)
-		zlast->next = node;
-	zlast = node;
+		if (currentbuffer->zlast)
+			currentbuffer->zlast->next = node;
+		currentbuffer->zlast = node;
 
-	if (!zfirst)
-		zfirst = node;
+		if (!currentbuffer->zfirst)
+			currentbuffer->zfirst = node;
+	}
 }
 
-void zflush(void)
+void zflush(int buffer)
 {
-	while (zfirst)
-	{
-		struct zprintnode* node = zfirst;
-		zfirst = node->next;
+	struct zbuffer* buf = currentbuffer;
+	zsetbuffer(buffer);
 
-		printf("%s", node->value);
+	while (buf->zfirst)
+	{
+		struct zprintnode* node = buf->zfirst;
+		buf->zfirst = node->next;
+
+		zprintf("%s", node->value);
+
 		free(node->value);
 		free(node);
 	}
 
-	zfirst = zlast = NULL;
+	buf->zfirst = buf->zlast = NULL;
 }
 
+void zsetbuffer(int buffer)
+{
+	if (buffer == ZBUFFER_STDOUT)
+		currentbuffer = NULL;
+	else
+	{
+		assert(buffer >= 0);
+		assert(buffer < ZBUFFER__MAX);
+
+		currentbuffer = &zbuffers[buffer];
+	}
+}

@@ -12,6 +12,7 @@ require "bit"
 
 local print = print
 local unpack = unpack
+local ipairs = ipairs
 local string_char = string.char
 local string_byte = string.byte
 local string_sub = string.sub
@@ -29,6 +30,18 @@ local bit_arshift = bit.arshift
 local ZERO = string_char(0)
  
 module "clue.crt"
+
+local initializer_list = {}
+function add_initializer(i)
+	initializer_list[#initializer_list + 1] = i
+end
+
+function run_initializers()
+	for _, i in ipairs(initializer_list) do
+		i()
+	end
+	initializer_list = {}
+end
 
 local READ_FN = 1
 local WRITE_FN = 2

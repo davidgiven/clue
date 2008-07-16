@@ -41,6 +41,7 @@ static struct decompose decompose_pseudo(struct instruction* insn,
 		switch (desiredtype)
 		{
 			case TYPE_PTR:
+			case TYPE_FNPTR:
 			{
 				/* Only constant 0 literals can be turned into pointers. */
 
@@ -69,7 +70,7 @@ static struct decompose decompose_pseudo(struct instruction* insn,
 	{
 		d.insn = __alloc_instruction(0);
 		d.pseudo = alloc_pseudo(d.insn);
-		d.insn->opcode = OP_SETVAL;
+		d.insn->opcode = OP_COPY;
 		d.insn->size = insn->size;
 		d.insn->bb = insn->bb;
 		d.insn->pos = insn->pos;
@@ -104,8 +105,10 @@ static void rewrite_bb(struct basic_block* bb)
 	again:
 		switch (insn->opcode)
 		{
-			case OP_RET:
 			case OP_COPY:
+				break;
+
+			case OP_RET:
 			case OP_CAST:
 			case OP_SCAST:
 			case OP_FPCAST:
