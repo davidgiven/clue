@@ -16,8 +16,8 @@ typedef unsigned int size_t;
 
 extern void* malloc(size_t s);
 extern void* calloc(size_t s1, size_t s2);
-extern void free(void* p);
-extern void* realloc(void* p, size_t s);
+#define free(p) do {} while (0)
+#define realloc(p, s) (p)
 
 extern int atoi(const char* s);
 extern long atol(const char* s);
