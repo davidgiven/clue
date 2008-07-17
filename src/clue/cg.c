@@ -612,24 +612,28 @@ static void generate_call(struct instruction *insn, struct bb_state *state)
 
 static void generate_branch(struct instruction *insn, struct bb_state *state)
 {
+	struct binfo* true_binfo = lookup_binfo_of_basic_block(insn->bb_true);
+
 	if (insn->cond)
 	{
 		struct hardregref hrf;
 		find_hardregref(&hrf, insn->cond);
 
+		struct binfo* false_binfo = lookup_binfo_of_basic_block(insn->bb_false);
+
 		switch (hrf.type)
 		{
 			case TYPE_PTR:
-				cg->bb_end_if_ptr(hrf.base, insn->bb_true, insn->bb_false);
+				cg->bb_end_if_ptr(hrf.base, true_binfo, false_binfo);
 				break;
 
 			default:
-				cg->bb_end_if_arith(hrf.simple, insn->bb_true, insn->bb_false);
+				cg->bb_end_if_arith(hrf.simple, true_binfo, false_binfo);
 				break;
 		}
 	}
 	else
-		cg->bb_end_jump(insn->bb_true);
+		cg->bb_end_jump(true_binfo);
 }
 
 /* Generate a phisrc instruction --- turns into a copy. */
@@ -850,7 +854,8 @@ static void generate_bb(struct basic_block *bb, struct bb_state *state)
 	connect_storage_list(state->inputs);
 	connect_storage_list(state->outputs);
 
-	cg->bb_start(bb);
+	struct binfo* binfo = lookup_binfo_of_basic_block(bb);
+	cg->bb_start(binfo);
 
 	struct instruction* insn;
 	FOR_EACH_PTR(bb->insns, insn)
@@ -1088,8 +1093,9 @@ void generate_ep(struct entrypoint *ep)
 
 	/* Wire together all the bbs. */
 
+	int sequence = 0;
 	generation = ++bb_generation;
-	wire_up_bb_recursively(ep->entry->bb, generation);
+	wire_up_bb_recursively(ep->entry->bb, generation, &sequence);
 
 	/* Generate the code itself into the zbuffer. */
 

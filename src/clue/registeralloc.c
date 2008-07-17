@@ -13,7 +13,7 @@
 #include "globals.h"
 
 static void wire_up_bb_list(struct basic_block_list *list,
-		unsigned long generation);
+		unsigned long generation, int* sequence);
 
 struct hardreg stackbase_reg;
 struct hardreg stackoffset_reg;
@@ -350,27 +350,32 @@ static void wire_up_storage_hash_list(struct storage_hash_list* list)
 
 }
 
-void wire_up_bb_recursively(struct basic_block* bb, unsigned long generation)
+void wire_up_bb_recursively(struct basic_block* bb, unsigned long generation,
+		int* sequence)
 {
 	bb->generation = generation;
 
+	struct binfo* binfo = lookup_binfo_of_basic_block(bb);
+	binfo->id = *sequence;
+	(*sequence)++;
+
 	/* Ensure that the parent bbs of this one get generated first. */
 
-	wire_up_bb_list(bb->parents, generation);
+	wire_up_bb_list(bb->parents, generation, sequence);
 	wire_up_storage_hash_list(gather_storage(bb, STOR_IN));
 	wire_up_storage_hash_list(gather_storage(bb, STOR_OUT));
-	wire_up_bb_list(bb->children, generation);
+	wire_up_bb_list(bb->children, generation, sequence);
 }
 
 static void wire_up_bb_list(struct basic_block_list* list,
-		unsigned long generation)
+		unsigned long generation, int* sequence)
 {
 	struct basic_block *bb;
 	FOR_EACH_PTR(list, bb)
 	{
 		if (bb->generation == generation)
 			continue;
-		wire_up_bb_recursively(bb, generation);
+		wire_up_bb_recursively(bb, generation, sequence);
 	}
 	END_FOR_EACH_PTR(bb);
 }

@@ -35,8 +35,10 @@ clue_program = cprogram {
 	cfile "src/clue/typestore.c",
 	cfile "src/clue/symbolstore.c",
 	cfile "src/clue/pinfostore.c",
+	cfile "src/clue/binfostore.c",
 	cfile "src/clue/rewrite.c",
 	cfile "src/clue/cg-lua.c",
+	cfile "src/clue/cg-javascript.c",
 	file "%SPARSELIB%",
 	
 	install = pm.install("bin/clue")
