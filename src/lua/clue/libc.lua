@@ -72,7 +72,7 @@ function _memset(sp, stack, destpo, destpd, c, n)
 end
 	
 function _atoi(sp, stack, po, pd)
-	s = ptrtostring(po, pd)
+	local s = ptrtostring(po, pd)
 	return math_floor(tonumber(s))
 end
 
