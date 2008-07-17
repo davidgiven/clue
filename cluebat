@@ -27,5 +27,5 @@ fi
 outfile="${outfile%.*}"
 
 # If you add -v to here, you get stupendous amounts of debug info.
-./bin/clue -nostdinc -Isrc/libc/include "$infile" > "$outfile".lua
+./bin/clue -mlua -nostdinc -Isrc/libc/include "$infile" > "$outfile".lua
 ./bin/luacg -o "$outfile".luac "$outfile".lua

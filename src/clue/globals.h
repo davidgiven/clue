@@ -122,6 +122,14 @@ struct sinfo
 	unsigned anonymous : 1;            /* is this symbol anonymous? */
 };
 
+/* binfos store back-end specific data about basic blocks.
+ */
+
+struct binfo
+{
+	struct basic_block* bb;
+	int id;                            /* sequence number for this bb */
+};
 
 extern struct hardreg stackbase_reg;
 extern struct hardreg stackoffset_reg;
@@ -134,6 +142,7 @@ struct codegenerator
 {
 	int pointer_zero_offset;
 
+	void (*prologue)(void);
 	void (*comment)(const char* format, ...);
 
 	void (*declare)(struct symbol* sym);
@@ -151,12 +160,12 @@ struct codegenerator
 
 	void (*function_epilogue)(void);
 
-	void (*bb_start)(struct basic_block* bb);
-	void (*bb_end_jump)(struct basic_block* target);
+	void (*bb_start)(struct binfo* bb);
+	void (*bb_end_jump)(struct binfo* target);
 	void (*bb_end_if_arith)(struct hardreg* cond,
-			struct basic_block* truetarget, struct basic_block* falsetarget);
+			struct binfo* truetarget, struct binfo* falsetarget);
 	void (*bb_end_if_ptr)(struct hardreg* cond,
-			struct basic_block* truetarget, struct basic_block* falsetarget);
+			struct binfo* truetarget, struct binfo* falsetarget);
 
 	void (*copy)(struct hardreg* src, struct hardreg* dest);
 	void (*load)(struct hardreg* simple, struct hardreg* base, int offset,
@@ -217,6 +226,7 @@ struct codegenerator
 
 extern const struct codegenerator* cg;
 extern const struct codegenerator cg_lua;
+extern const struct codegenerator cg_javascript;
 
 extern const char* aprintf(const char* fmt, ...);
 extern void zprintf(const char* fmt, ...);
@@ -249,7 +259,7 @@ extern struct hardreg* find_source_hardreg_for_pseudo(struct bb_state* state,
 extern struct storage_hash* find_storagehash_for_pseudo(
 		struct bb_state* state, pseudo_t pseudo, struct hardreg* reg);
 extern void wire_up_bb_recursively(struct basic_block* bb,
-    unsigned long generation);
+    unsigned long generation, int* sequence);
 
 extern void generate_ep(struct entrypoint* ep);
 
@@ -270,5 +280,7 @@ extern const char* show_symbol_mangled(struct symbol* sym);
 
 extern void rewrite_bb_recursively(struct basic_block* bb,
     unsigned long generation);
+
+struct binfo* lookup_binfo_of_basic_block(struct basic_block* binfo);
 
 #endif

@@ -57,28 +57,68 @@ static void init_sizes(void)
 static void emit_file_prologue(void)
 {
 	zsetbuffer(ZBUFFER_HEADER);
-	zprintf("require \"clue.crt\"\n");
-	zprintf("local int = clue.crt.int\n");
-	zprintf("local booland = clue.crt.booland\n");
-	zprintf("local boolor = clue.crt.boolor\n");
-	zprintf("local logand = clue.crt.logand\n");
-	zprintf("local logor = clue.crt.logor\n");
-	zprintf("local logxor = clue.crt.logxor\n");
-	zprintf("local lognot = clue.crt.lognot\n");
-	zprintf("local shl = clue.crt.shl\n");
-	zprintf("local shr = clue.crt.shr\n");
-	zprintf("local _memcpy = _memcpy\n");
+	cg->prologue();
 }
 
-int main(int argc, char **argv)
+static struct
+{
+	const char* option;
+	const struct codegenerator* cg;
+}
+generator_table[] = {
+	{ "-mlua",     &cg_lua },
+	{ "-mjs",      &cg_javascript }
+};
+
+static void init_code_generator(int* argc, const char* argv[])
+{
+	int i = 1;
+
+	cg = NULL;
+	while (argv[i])
+	{
+		int j;
+		for (j=0; j<sizeof(generator_table)/sizeof(*generator_table); j++)
+		{
+			if (strcmp(argv[i], generator_table[j].option) == 0)
+			{
+				if (cg)
+					die("you can only specify one backend at a time");
+				cg = generator_table[j].cg;
+
+				j = i;
+				while (argv[j])
+				{
+					argv[j] = argv[j+1];
+					j++;
+				}
+
+				(*argc)--;
+			}
+		}
+
+		i++;
+	}
+
+	if (!cg)
+		die("you must specify a code generator");
+}
+
+int main(int argc, const char* argv[])
 {
 	init_sizes();
 	init_register_allocator();
+	init_code_generator(&argc, argv);
 
-	cg = &cg_lua;
+	/* Poke some special lines into the parse buffer to set up the
+	 * include paths.
+	 */
+
+	add_pre_buffer("#nostdinc\n");
+	add_pre_buffer("#add_isystem \"src/libc/include\"\n");
 
 	struct string_list* filelist = NULL;
-	struct symbol_list* symbols = sparse_initialize(argc, argv, &filelist);
+	struct symbol_list* symbols = sparse_initialize(argc, (char**) argv, &filelist);
 
 	emit_file_prologue();
 	compile_symbol_list(symbols);
@@ -108,6 +148,7 @@ int main(int argc, char **argv)
 	zsetbuffer(ZBUFFER_INITIALIZER);
 	zflush(ZBUFFER_STDOUT);
 
+	cg->return_void();
 	cg->function_epilogue();
 
 	if (die_if_error)

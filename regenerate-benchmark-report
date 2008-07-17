@@ -53,7 +53,7 @@ Lua interpreter:
 EOF
 
 ./cluebat test/whetstone.c /tmp/benchmark.luac
-./cluerun /tmp/benchmark.luac
+./cluerun -e lua -f /tmp/benchmark.luac
 
 cat << EOF
 ---snip---
@@ -63,7 +63,28 @@ LuaJIT:
 ---snip---
 EOF
 
-luajit -O ./cluerun /tmp/benchmark.luac
+./cluerun -e luajit -f /tmp/benchmark.luac
+
+cat << EOF
+---snip---
+
+SpiderMonkey:
+
+--snip---
+EOF
+
+bin/clue -mjs test/whetstone.c > /tmp/benchmark.js
+./cluerun -e smjs -f /tmp/benchmark.js
+
+cat << EOF
+---snip---
+
+Rhino:
+
+---snip---
+EOF
+
+./cluerun -e rhino -f /tmp/benchmark.js
 
 cat << EOF
 ---snip---

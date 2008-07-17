@@ -16,9 +16,9 @@ local benchdata = {
 	{"clbg-mandelbrot",                1000},
 	{"clbg-partialsums",               250000},
 	{"clbg-fannkuch",                  8},
-	{"clbg-recursive",                 8},
+	{"clbg-recursive",                 6},
 	{"clbg-n-body",                    60000},
-	{"clbg-nsieve",                    9}
+	{"clbg-nsieve",                    7}
 }
 
 local function exec(s)
@@ -42,16 +42,29 @@ for i = 1, #benchdata do
 	exec("/tmp/benchmark "..arg.." > /dev/null")
 	local gcctime = socket.gettime() - t
 	print("gcc:", pn(gcctime), pn(1.0))
-	
+
 	exec("./cluebat test/"..name..".c /tmp/benchmark")
 	
 	t = socket.gettime()
-	exec("lua ./cluerun /tmp/benchmark.luac "..arg.." > /dev/null")
+	exec("./cluerun -e lua -f /tmp/benchmark.luac -- "..arg.." > /dev/null")
 	local luatime = socket.gettime() - t
 	print("lua:", pn(luatime), pn(luatime / gcctime))
 	
 	t = socket.gettime()
-	exec("luajit -O ./cluerun /tmp/benchmark.luac "..arg.." > /dev/null")
+	exec("./cluerun -e luajit -f /tmp/benchmark.luac -- "..arg.." > /dev/null")
 	local luajittime = socket.gettime() - t
 	print("luajit:", pn(luajittime), pn(luajittime / gcctime))
+	
+	exec("./bin/clue -mjs test/"..name..".c > /tmp/benchmark.js")
+	
+	t = socket.gettime()
+	exec("./cluerun -e smjs -f /tmp/benchmark.js -- "..arg.." > /dev/null")
+	local smjstime = socket.gettime() - t
+	print("smjs:", pn(smjstime), pn(smjstime / gcctime))
+	
+	t = socket.gettime()
+	exec("./cluerun -e rhino -f /tmp/benchmark.js -- "..arg.." > /dev/null")
+	local rhinotime = socket.gettime() - t
+	print("rhino:", pn(rhinotime), pn(rhinotime / gcctime))
+	
 end
