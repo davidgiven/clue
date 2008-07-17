@@ -1,21 +1,22 @@
-                                  CLUE v0.1.1
-                                  ===========
+                                   CLUE v0.2
+                                   =========
 
                             (C) 2008 David Given
-                                 2008-07-14
+                                 2008-07-18
 
 
 INTRODUCTION
 ============
 
-Clue is an experimental C compiler for Lua. It compiles, eventually, ANSI
-C programs into Lua bytecode which may be run on a standard Lua interpreter
-or using Mike Pall's LuaJIT interpreter.
+Clue is an experimental C compiler for Lua and Javascript. It compiles,
+eventually, ANSI C programs into a form which may be run on a standard Lua or
+Javascript interpreter.
 
 Clue is EXPERIMENTAL and UNFINISHED. It is not suitable for any kind of
 production use. There are a number of C language features that are not
 implemented yet, and it produces rather bad code. However, it will compile
 a large number of non-trivial programs.
+
 
 
 INSTALLATION
@@ -25,18 +26,26 @@ Installation is unfortunately rather involved and will only work on Unix-like
 systems. I develop on Linux. You *may* be able to make it all work on Cygwin
 but you're on your own. Sorry.
 
-1. Install Lua 5.1 with LuaSocket and BitLib.
+TO RUN PROGRAMS BUILT WITH THE LUA BACK END:
+   ...you will need a Lua 5.1.3 interpreter (such as the stock Lua or Mike
+   Pall's LuaJIT) with the LuaSocket and BitLib modules installed.
 
-2. Fetch sparse 0.4.1 from here:
+TO RUN PROGRAMS BUILT WITH THE JAVASCRIPT BACK END:
+   ...you will need a command-line Javascript interpreter such as SpiderMonkey
+   or Rhino.
+
+TO BUILD THE COMPILER:
+   
+1. Fetch sparse 0.4.1 from here:
 
      http://www.kernel.org/pub/software/devel/sparse/
 
    Apply the supplied sparse.patch file, compile it, and install it.    
 
-3. Edit the supplied pmfile and change the section at the top to point
+2. Edit the supplied pmfile and change the section at the top to point
    at where you installed sparse's headers and libraries.
    
-4. Do:
+3. Do:
 
      ./pm
      
@@ -52,29 +61,44 @@ USAGE
 
 You may compile a C program as follows:
 
-    ./cluebat test/helloworld.c output.luac
+	bin/clue -m<backend> test/helloworld.c > output.<backend>
+	
+<backend> may be lua or js.
    
-This will read in the source file, compile it to output.lua, assemble it, and
-write out the bytecode file as output.luac. Note: the .lua file should *only*
-be used with the Lua assembler shipped with Clue --- it contains non-standard
-extensions that won't work with a stock interpreter. However, the .luac
-bytecode files will work anywhere.
+This will read in the source file, compile it and write out the result.
 
-Once compiled, you may run the bytecode files as follows:
+IMPORTANT NOTE: if you're using the Lua back end, the resulting files *will
+not work*. They need processing with the supplied Lua 'assembler' to make the
+GOTO statements within them work properly. The cluebat script is a simple tool
+to do this for you; use 'cluebat test/helloworld.c output.luac' to compile,
+process and assemble a file.
 
-    ./cluerun output.luac
-    
+Once you have a runnable result, you may run it with the cluerun tool. This
+sets up the run-time environment needed to run Clue code.
 
-USAGE WITH LUAJIT
-=================
+    ./cluerun -f output.luac
+or  ./cluerun -f output.js
 
-Clue-compiled programs work fine with LuaJit, giving fairly massive speed
-improvements. You do this as follows:
+By default, cluerun will try to use LuaJIT for .luac files and SpiderMonkey
+for Javascript files. You can change this with the -e option, which may have
+one of the following values:
 
-    luajit -O ./cluerun output.luac
-    
-You may need to adjust the first few lines of the cluerun script to allow
-LuaJit to see the same packages that Lua can.
+    lua       standard Lua interpreter
+    luajit    Mike Pall's LuaJIT
+    smjs      SpiderMonkey Javascript interpreter
+    rhino     Rhino Javascript interpreter
+
+You can pass arguments to the Clue program by suffixing cluerun with a --.
+
+    ./cluerun -e rhino -f output.js -- arg1 arg2 arg3
+
+You may use multiple files --- all of the same type, of course --- and they
+will get linked together and main() run.
+
+    ./cluerun -e rhino -f file1.js -f file2.js -f file3.js -- arg1 arg2 arg3   
+
+However, this is currently untested. (sparse has some bugs that cause
+prototyping symbols to sometimes not work correctly.)
 
 
 BENCHMARKING
@@ -118,16 +142,16 @@ very differently to normal C compilers,
   means you can't do this:
   
   {
-    long i = 1;
-    return *(int*)i;
+    void* p = &fnord;
+    return *(int*)p;
   }
   
   You *can* use unions to store two objects of different types at the same
   memory location --- but accessing the wrong one will probably produce a
   runtime error.
   
-- sizeof(char) == sizeof(int) == sizeof(long) == sizeof(void*) ==
-  sizeof(void(*)()) == 1.
+- sizeof(char) == sizeof(int) == sizeof(long) == sizeof(void(*)()) == 1.
+  sizeof(void*) == 2.
 
 - trying to operate on uninitialised memory will most likely produce a
   runtime error (as it gets initialised to the Lua value nil, which you
@@ -159,11 +183,12 @@ Compiler bugs:
 
 Libc bugs:
 
-- stdio can only read or write text; this causes clbg-mandelbrot to
+- stdio can only read or write text on Lua; this causes clbg-mandelbrot to
   produce invalid data when run using clue.
   
-- printf can't handle the l modifier and produces a run-time error
-  if it sees one.
+- printf is very basic and doesn't properly implement the printf spec
+  (different on each platform); for example, Lua can't handle the l modifier
+  and produces a run-time error if it sees one.
 
 There are others. Oh, yes, there are others.
   
