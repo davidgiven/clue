@@ -1,84 +1,117 @@
-#!/usr/bin/lua
--- Clue runtime loader
---
--- © 2008 David Given.
--- Clue is licensed under the Revised BSD open source license. To get the
--- full license text, see the README file.
---
--- $Id$
--- $HeadURL$
--- $LastChangedDate$
+#!/bin/sh
+# Clue runtime loader
+#
+# © 2008 David Given.
+# Clue is licensed under the Revised BSD open source license. To get the
+# full license text, see the README file.
+#
+# $Id$
+# $HeadURL$
+# $LastChangedDate$
 
--- You may need to alter these two lines if LuaJit expects to see modules
--- somewhere other than the default location. (For example, if you use the
--- Debian packages for Lua, but install LuaJit from source.)
+set -e
 
-package.path = package.path ..
-	";/usr/share/lua/5.1/?.lua;/usr/share/lua/5.1/?/init.lua;" ..
-	"/usr/lib/lua/5.1/?.lua;/usr/lib/lua/5.1/?/init.lua"
+validate_engine() {
+	case "$1" in
+		lua)
+			which lua > /dev/null
+			return $?
+			;;
+			
+		luajit)
+			which luajit > /dev/null
+			return $?
+			;;
+			
+		smjs)
+			which smjs > /dev/null
+			return $?
+			;;
+			
+		rhino)
+			which rhino > /dev/null
+			return $?
+			;;
+	esac
 	
-package.cpath = package.cpath ..
-	";/usr/lib/lua/5.1/?.so;/usr/lib/lua/5.1/?.so;/usr/lib/lua/5.1/loadall.so"
+	return 1
+}
 
--- This line allows us to find the clue modules. Don't change.
-
-package.path = package.path ..
-	";src/lua/?.lua"
-
-require "socket"
-require "clue.crt"
-require "clue.libc"
-
-local math_floor = math.floor
-
-local infile = (...)
-if (not infile) or (infile == "-h") or (infile == "--help") then
-	print("cluerun: clue runtime engine")
-	print("Syntax: cluerun <inputfile.luac> <args...>")
-	print("    or: luajit cluerun <inputfile.luac> <args...>");
-	print("Arguments after the .luac file get passed in to the program's")
-	print("main() function.")
-	os.exit(1)
-end
+execute_engine() {
+	case "$1" in
+		lua)
+			exec lua src/lua/run.lua -- "$@"
+			;;
+			
+		luajit)
+			exec luajit -O src/lua/run.lua -- "$@"
+			;;
+			
+		smjs)
+			exec smjs src/javascript/run.js "$@"
+			;;
+			
+		rhino)
+			exec rhino src/javascript/run.js "$@"
+			;;
+	esac
 	
--- C runtime library
+	echo "cluerun: unknown engine $1" 1>&2
+	exit 1
+}
 
-ptrtostring = clue.crt.ptrtostring
+inputfiles=
+engine=
+while [ "$1" != "" ]; do
+	case "$1" in
+		-h|--help)
+			echo "cluerun: no help yet." 1>&2
+			exit 1
+			;;
+			
+		-f|--file)
+			inputfiles="$inputfiles $2"
+			shift
+			;;
+			
+		-e|--engine)
+			engine="$2"
+			shift
+			;;
+			
+		--)
+			shift
+			break
+			;;
+			
+		*)
+			echo "cluerun: unrecognised option $1" 1>&2
+			exit 1
+			;;
+	esac
+	shift 
+done
 
-newstring = clue.crt.newstring
+if [ "$engine" = "" ]; then
+	case "$inputfiles" in
+		*.luac)
+			engine=luajit
+			;;
+			
+		*.js)
+			engine=smjs
+			;;
+			
+		*)
+			echo "cluerun: unable to guess engine type; try -e" 1>&2
+			exit 1
+			;;
+	esac
+fi
 
--- Import the standard library.
+if ! validate_engine $engine; then
+	echo "cluerun: engine '$engine' doesn't seem to be available" 1>&2
+	exit 1
+fi
 
-for k, v in pairs(clue.libc) do
-	_G[k] = v
-end
-
--- Load the binary.
-
-local chunk, e = loadfile(infile)
-if e then
-	print("Load error: "..e)
-	os.exit(0)
-end
-
-chunk()
-
--- Run it.
-
-do
-	-- (Construct argv list first.)
-	
-	local rawargs = {...}
-	local cargs = {};
-	
-	for i, v in ipairs(rawargs) do
-		v = newstring(v)
-		cargs[#cargs+1] = 1
-		cargs[#cargs+1] = v
-	end
-	
-	clue.crt.run_initializers()
-	local result = _main(1, {}, #rawargs, 1, cargs)
-	os.exit(result)
-end
-
+execute_engine $engine $inputfiles -- clue "$@"
