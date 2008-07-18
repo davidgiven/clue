@@ -24,6 +24,9 @@ clue_program = cprogram {
 		"src/clue",
 		"%SPARSEINC%",
 	},
+	CLIBRARIES = {
+		"gc"
+	},
 	CBUILDFLAGS = {"-g", "-Wall", "-fno-strict-aliasing"},
 	
 	cfile "src/clue/main.c",
