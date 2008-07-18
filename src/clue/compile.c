@@ -13,7 +13,10 @@
 #include "globals.h"
 
 static void declare_symbol(struct symbol* sym);
-static void define_symbol(struct symbol* sym);
+static void pass1_define_symbol(struct symbol* sym);
+
+static struct hardreg* target_ptr;
+static struct symbol_list* symbols_to_initialize = NULL;
 
 /* Emits elements from within an array initializer. */
 
@@ -23,15 +26,19 @@ static int emit_array_initializer(int pos, struct expression* expr)
 	{
 		case EXPR_STRING:
 		{
+			struct hardreg* reg = allocate_hardreg(REGTYPE_INT);
+
 			struct string* s = expr->string;
 			int i = 0;
 			for (i = 0; i < s->length; i++)
 			{
 				int c = s->data[i];
-				cg->set_int(c, &hardregs[1]);
-				cg->store(NULL, &hardregs[0], pos, &hardregs[1]);
+				cg->set_int(c, reg);
+				cg->store(NULL, target_ptr, pos, reg);
 				pos++;
 			}
+
+			unref_hardreg(reg);
 			break;
 		}
 
@@ -49,17 +56,25 @@ static int emit_array_initializer(int pos, struct expression* expr)
 
 		case EXPR_VALUE:
 		{
-			cg->set_int(expr->value, &hardregs[1]);
-			cg->store(NULL, &hardregs[0], pos, &hardregs[1]);
+			struct hardreg* reg = allocate_hardreg(REGTYPE_INT);
+
+			cg->set_int(expr->value, reg);
+			cg->store(NULL, target_ptr, pos, reg);
 			pos++;
+
+			unref_hardreg(reg);
 			break;
 		}
 
 		case EXPR_FVALUE:
 		{
-			cg->set_float(expr->fvalue, &hardregs[1]);
-			cg->store(NULL, &hardregs[0], pos, &hardregs[1]);
+			struct hardreg* reg = allocate_hardreg(REGTYPE_FLOAT);
+
+			cg->set_float(expr->fvalue, reg);
+			cg->store(NULL, target_ptr, pos, reg);
 			pos++;
+
+			unref_hardreg(reg);
 			break;
 		}
 
@@ -72,9 +87,14 @@ static int emit_array_initializer(int pos, struct expression* expr)
 
 		case EXPR_SYMBOL:
 		{
+			struct hardreg* reg = allocate_hardreg(REGTYPE_OPTR);
+
 			declare_symbol(expr->symbol);
-			cg->set_symbol(expr->symbol, &hardregs[1]);
-			cg->store(NULL, &hardregs[0], pos, &hardregs[1]);
+			cg->set_symbol(expr->symbol, reg);
+			cg->store(NULL, target_ptr, pos, reg);
+			pos++;
+
+			unref_hardreg(reg);
 			break;
 		}
 
@@ -114,7 +134,8 @@ static void emit_array(struct symbol* sym)
 {
 	if (sym->initializer)
 	{
-		cg->set_symbol(sym, &hardregs[0]);
+		cg->set_symbol(sym, target_ptr);
+
 		emit_array_initializer(cg->pointer_zero_offset, sym->initializer);
 	}
 }
@@ -127,16 +148,24 @@ static void emit_scalar(struct symbol* sym)
 	if (!expr)
 		return;
 
-	cg->set_symbol(sym, &hardregs[0]);
+	cg->set_symbol(sym, target_ptr);
 	switch (expr->type)
 	{
 		case EXPR_SYMBOL:
 		{
+			struct hardreg* reg = allocate_hardreg(REGTYPE_OPTR);
+
 			declare_symbol(expr->symbol);
-			cg->set_int(cg->pointer_zero_offset, &hardregs[1]);
-			cg->store(NULL, &hardregs[0], cg->pointer_zero_offset, &hardregs[1]);
-			cg->set_symbol(expr->symbol, &hardregs[1]);
-			cg->store(NULL, &hardregs[0], cg->pointer_zero_offset+1, &hardregs[1]);
+			cg->set_int(cg->pointer_zero_offset, reg);
+			cg->store(NULL, target_ptr, cg->pointer_zero_offset, reg);
+
+			unref_hardreg(reg);
+			reg = allocate_hardreg(REGTYPE_INT);
+
+			cg->set_symbol(expr->symbol, reg);
+			cg->store(NULL, target_ptr, cg->pointer_zero_offset, reg);
+
+			unref_hardreg(reg);
 			break;
 		}
 
@@ -152,16 +181,16 @@ static void compile_references_for_function(struct entrypoint* ep)
 	pseudo_t pseudo;
 	FOR_EACH_PTR(ep->accesses, pseudo)
 	{
-	    if (pseudo->type == PSEUDO_SYM)
-	    {
-	    	struct symbol* sym = pseudo->sym;
+		if (pseudo->type == PSEUDO_SYM)
+		{
+			struct symbol* sym = pseudo->sym;
 
-	        if ((sym->ctype.modifiers & MOD_STATIC) ||
-	        	(sym->ctype.modifiers & MOD_EXTERN))
-	        {
-	        	declare_symbol(sym);
-	        }
-	    }
+			if ((sym->ctype.modifiers & MOD_STATIC) ||
+					(sym->ctype.modifiers & MOD_EXTERN))
+			{
+				declare_symbol(sym);
+			}
+		}
 	}
 	END_FOR_EACH_PTR(pseudo);
 }
@@ -170,50 +199,54 @@ static void compile_references_for_function(struct entrypoint* ep)
 
 static void declare_symbol(struct symbol* sym)
 {
-	struct symbol* type = sym->ctype.base_type;
 	struct sinfo* sinfo = lookup_sinfo_of_symbol(sym);
 
 	if (sinfo->declared)
 		return;
-    sinfo->declared = 1;
+	sinfo->declared = 1;
 
-    zsetbuffer(ZBUFFER_HEADER);
-    cg->comment("symbol %s (%p), here=%d, static=%d\n",
-    		show_symbol_mangled(sym), sym,
-    		sinfo->here, !!(sym->ctype.modifiers & MOD_STATIC));
-    cg->declare(sym);
+	zsetbuffer(ZBUFFER_HEADER);
+	cg->comment("symbol %s (%p), here=%d, static=%d\n",
+			show_symbol_mangled(sym), sym, sinfo->here, !!(sym->ctype.modifiers
+					& MOD_STATIC));
+	cg->declare(sym);
 
-	zsetbuffer(ZBUFFER_INITIALIZER);
-    if (!sinfo->here)
-    {
-    	/* If extern, import the symbol. */
+	/* ...and queue the pass 2 declaration. */
 
-    	cg->import(sym);
-    }
-    else
-    {
-    	/* Otherwise, define storage for the symbol (but don't initialise
-    	 * it yet).
-    	 */
-    	if (type->type != SYM_FN)
-    		cg->create_storage(sym);
-
-		/* We need to manually define anonymous symbols because they're not
-		 * in the symbol list. */
-
-		if (sinfo->anonymous)
-			define_symbol(sym);
-
-	    /* Export the symbol if necessary. */
-
-		if (!(sym->ctype.modifiers & MOD_STATIC))
-			cg->export(sym);
-    }
+	add_symbol(&symbols_to_initialize, sym);
 }
 
-/* Compile a single symbol (either generating code or an initializer). */
+/* Compile a single symbol in pass1. If it's a function, define immediately;
+ * otherwise, add it to the list of things to define later. */
 
-static void define_symbol(struct symbol* sym)
+static void pass1_define_symbol(struct symbol* sym)
+{
+	struct symbol* type = sym->ctype.base_type;
+	struct sinfo* sinfo = lookup_sinfo_of_symbol(sym);
+
+	if (sinfo->defined)
+		return;
+
+	switch (type->type)
+	{
+		case SYM_FN:
+		{
+			struct entrypoint *ep = linearize_symbol(sym);
+			if (ep)
+			{
+				compile_references_for_function(ep);
+				generate_ep(ep);
+				zsetbuffer(ZBUFFER_FUNCTION);
+				zflush(ZBUFFER_CODE);
+			}
+			break;
+		}
+	}
+}
+
+/* Compile a single symbol during pass 2. */
+
+static void pass2_define_or_declare_symbol(struct symbol* sym)
 {
 	struct symbol* type = sym->ctype.base_type;
 	struct sinfo* sinfo = lookup_sinfo_of_symbol(sym);
@@ -223,36 +256,44 @@ static void define_symbol(struct symbol* sym)
 		return;
 	sinfo->defined = 1;
 
-	switch (type->type)
+	if (!sinfo->here)
 	{
-		case SYM_ARRAY:
-		case SYM_STRUCT:
-			zsetbuffer(ZBUFFER_INITIALIZER);
-			emit_array(sym);
-			break;
+		/* If extern, import the symbol. */
 
-		case SYM_BASETYPE:
-		case SYM_PTR:
-			zsetbuffer(ZBUFFER_INITIALIZER);
-			emit_scalar(sym);
-			break;
+		cg->import(sym);
+	}
+	else
+	{
+		/* Otherwise, define storage for the symbol. */
 
-		case SYM_FN:
+		if (type->type != SYM_FN)
+			cg->create_storage(sym);
+
+		/* Export the symbol if necessary. */
+
+		if (!(sym->ctype.modifiers & MOD_STATIC))
+			cg->export(sym);
+
+		/* And initialize. */
+
+		switch (type->type)
 		{
-			expand_symbol(sym);
-			struct entrypoint *ep = linearize_symbol(sym);
-			if (ep)
-			{
-			    compile_references_for_function(ep);
-				generate_ep(ep);
-				zsetbuffer(ZBUFFER_FUNCTION);
-				zflush(ZBUFFER_CODE);
-			}
-			break;
-		}
+			case SYM_ARRAY:
+			case SYM_STRUCT:
+				emit_array(sym);
+				break;
 
-		default:
-			printf("define symbol %s type %d\n", name, type->type);
+			case SYM_BASETYPE:
+			case SYM_PTR:
+				emit_scalar(sym);
+				break;
+
+			case SYM_FN:
+				break;
+
+			default:
+				printf("define symbol %s type %d\n", name, type->type);
+		}
 	}
 }
 
@@ -262,17 +303,31 @@ int compile_symbol_list(struct symbol_list *list)
 {
 	struct symbol *sym;
 
-	/* Expand all symbols, and mark all defined symbols as coming from here. */
+	/* For each symbol: */
 
 	FOR_EACH_PTR(list, sym)
 	{
+		/* Expand it... */
+
 		expand_symbol(sym);
+
+		/* Mark it as coming from here... */
 
 		struct sinfo* sinfo = lookup_sinfo_of_symbol(sym);
 		sinfo->here = 1;
+
+		/* Declare it... */
+
+		declare_symbol(sym);
+
+		/* ...do the pass 1 definition... */
+
+		pass1_define_symbol(sym);
+		break;
 	}
 	END_FOR_EACH_PTR(sym);
 
+#if 0
 	/* Now, declare and define all symbols. */
 
 	FOR_EACH_PTR(list, sym)
@@ -281,7 +336,56 @@ int compile_symbol_list(struct symbol_list *list)
 		define_symbol(sym);
 	}
 	END_FOR_EACH_PTR(sym);
+#endif
 
 	return 0;
 }
 
+/* Emit a function that will initialize all of this file's global data. */
+
+void emit_initializer(void)
+{
+	reset_hardregs();
+	untouch_hardregs();
+
+	cg->function_prologue(NULL);
+
+	/* Allocate an object pointer register to hold the thing we're
+	 * initializing. */
+
+	target_ptr = allocate_hardreg(REGTYPE_OPTR);
+
+	/* Allocate and declare one register of each class. This ensures
+	 * that there's an available register later when we emit the
+	 * initializer code.
+	 */
+
+	int i;
+	for (i = 0; i < NUM_REG_CLASSES; i++)
+	{
+		struct hardreg* reg = allocate_hardreg(1 << i);
+		unref_hardreg(reg);
+	}
+
+	for (i = 0; i < NUM_REGS; i++)
+	{
+		struct hardreg* reg = &hardregs[i];
+		if (reg->touched)
+			cg->function_prologue_reg(reg);
+	}
+
+	cg->function_prologue_end();
+
+	zsetbuffer(ZBUFFER_INITIALIZER);
+	zflush(ZBUFFER_STDOUT);
+
+	struct symbol* sym;
+	FOR_EACH_PTR(symbols_to_initialize, sym)
+	{
+		pass2_define_or_declare_symbol(sym);
+	}
+	END_FOR_EACH_PTR(sym);
+
+	cg->return_void();
+	cg->function_epilogue();
+}
