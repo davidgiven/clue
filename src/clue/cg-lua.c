@@ -14,6 +14,31 @@
 
 static int function_arg_list = 0;
 static int function_is_initializer = 0;
+static int register_count;
+
+/* Reset the register tracking. */
+
+static void cg_reset_registers(void)
+{
+	register_count = 0;
+}
+
+/* Initialize a new hardreg. */
+
+static void cg_init_register(struct hardreg* reg, int regclass)
+{
+	assert(!reg->name);
+	reg->name = aprintf("H%d", register_count);
+	register_count++;
+}
+
+/* Get the name of a register. */
+
+static const char* cg_get_register_name(struct hardreg* reg)
+{
+	assert(reg->name);
+	return reg->name;
+}
 
 /* Emit the file prologue. */
 
@@ -117,14 +142,14 @@ static void cg_function_epilogue(void)
 
 static void cg_bb_start(struct binfo* bb)
 {
-	zprintf("__LABEL = 0x%08x\n", bb->id);
+	zprintf("__LABEL = %d\n", bb->id);
 }
 
 /* Ends a basic block in an unconditional jump. */
 
 static void cg_bb_end_jump(struct binfo* target)
 {
-	zprintf("__GOTO = 0x%08x\n", target->id);
+	zprintf("__GOTO = %d\n", target->id);
 }
 
 /* Ends a basic block in a conditional jump based on an arithmetic value. */
@@ -132,7 +157,7 @@ static void cg_bb_end_jump(struct binfo* target)
 static void cg_bb_end_if_arith(struct hardreg* cond,
 		struct binfo* truetarget, struct binfo* falsetarget)
 {
-	zprintf("if %s ~= 0 then __GOTO = 0x%08x else __GOTO = 0x%08x end\n",
+	zprintf("if %s ~= 0 then __GOTO = %d else __GOTO = %d end\n",
 			show_hardreg(cond), truetarget->id, falsetarget->id);
 }
 
@@ -141,7 +166,7 @@ static void cg_bb_end_if_arith(struct hardreg* cond,
 static void cg_bb_end_if_ptr(struct hardreg* cond,
 		struct binfo* truetarget, struct binfo* falsetarget)
 {
-	zprintf("if %s then __GOTO = 0x%08x else __GOTO = 0x%08x end\n",
+	zprintf("if %s then __GOTO = %d else __GOTO = %d end\n",
 			show_hardreg(cond), truetarget->id, falsetarget->id);
 }
 
@@ -385,6 +410,14 @@ static void cg_memcpy(struct hardregref* src, struct hardregref* dest, int size)
 const struct codegenerator cg_lua =
 {
 	.pointer_zero_offset = 1,
+
+	.register_class =
+	{
+		[0] = REGTYPE_ALL
+	},
+	.reset_registers = cg_reset_registers,
+	.init_register = cg_init_register,
+	.get_register_name = cg_get_register_name,
 
 	.prologue = cg_prologue,
 	.comment = cg_comment,

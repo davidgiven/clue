@@ -139,17 +139,7 @@ int main(int argc, const char* argv[])
 	zflush(ZBUFFER_STDOUT);
 	zprintf("\n");
 
-	cg->function_prologue(NULL);
-	cg->function_prologue_reg(&hardregs[0]);
-	cg->function_prologue_reg(&hardregs[1]);
-	cg->function_prologue_reg(&hardregs[2]);
-	cg->function_prologue_end();
-
-	zsetbuffer(ZBUFFER_INITIALIZER);
-	zflush(ZBUFFER_STDOUT);
-
-	cg->return_void();
-	cg->function_epilogue();
+	emit_initializer();
 
 	if (die_if_error)
 		return 1;

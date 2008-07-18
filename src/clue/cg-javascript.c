@@ -16,6 +16,31 @@ static int function_arg_list = 0;
 static int function_is_initializer = 0;
 static struct hardreg* call_return_ptr1;
 static struct hardreg* call_return_ptr2;
+static int register_count;
+
+/* Reset the register tracking. */
+
+static void cg_reset_registers(void)
+{
+	register_count = 0;
+}
+
+/* Initialize a new hardreg. */
+
+static void cg_init_register(struct hardreg* reg, int regclass)
+{
+	assert(!reg->name);
+	reg->name = aprintf("H%d", register_count);
+	register_count++;
+}
+
+/* Get the name of a register. */
+
+static const char* cg_get_register_name(struct hardreg* reg)
+{
+	assert(reg->name);
+	return reg->name;
+}
 
 /* Emit the file prologue. */
 
@@ -348,6 +373,14 @@ static void cg_memcpy(struct hardregref* src, struct hardregref* dest, int size)
 const struct codegenerator cg_javascript =
 {
 	.pointer_zero_offset = 0,
+
+	.register_class =
+	{
+		[0] = REGTYPE_ALL
+	},
+	.reset_registers = cg_reset_registers,
+	.init_register = cg_init_register,
+	.get_register_name = cg_get_register_name,
 
 	.prologue = cg_prologue,
 	.comment = cg_comment,

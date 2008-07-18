@@ -62,6 +62,20 @@ enum
 	TYPE_STRUCT,
 };
 
+/* Register types. */
+
+enum
+{
+	REGTYPE_INT    = 1<<0,
+	REGTYPE_FLOAT  = 1<<1,
+	REGTYPE_BOOL   = 1<<2,
+	REGTYPE_OPTR   = 1<<3,
+	REGTYPE_FPTR   = 1<<4,
+
+	REGTYPE_ALL    = (1<<5)-1,
+	NUM_REG_CLASSES = 5
+};
+
 struct bb_state
 {
 	struct position pos;
@@ -75,8 +89,10 @@ DECLARE_PTR_LIST(pinfo_list, struct pinfo);
 
 struct hardreg
 {
+	const char* name;
 	unsigned busy : 16;
 	unsigned number : 8;
+	unsigned regclass : 8;
 	unsigned used : 1;
 	unsigned touched : 1;
 	unsigned dying : 1;
@@ -141,6 +157,11 @@ extern struct hardreg hardregs[NUM_REGS];
 struct codegenerator
 {
 	int pointer_zero_offset;
+	int register_class[NUM_REG_CLASSES];
+
+	void (*reset_registers)(void);
+	void (*init_register)(struct hardreg* reg, int regclass);
+	const char* (*get_register_name)(struct hardreg* reg);
 
 	void (*prologue)(void);
 	void (*comment)(const char* format, ...);
@@ -239,7 +260,6 @@ extern const char* show_hardreg(struct hardreg* reg);
 extern const char* show_hardregref(struct hardregref* hrf);
 extern void reset_hardregs(void);
 extern void untouch_hardregs(void);
-extern struct hardreg* allocate_hardreg(void);
 
 extern void ref_hardregref(struct hardregref* hrf);
 extern void unref_hardregref(struct hardregref* hrf);
@@ -247,6 +267,8 @@ extern void find_hardregref(struct hardregref* hrf, pseudo_t pseudo);
 extern void create_hardregref(struct hardregref* hrf, pseudo_t pseudo);
 extern void clone_ptr_hardregref(struct hardregref* src, struct hardregref* hrf,
 		pseudo_t pseudo);
+extern struct hardreg* allocate_hardreg(int regtype);
+extern void unref_hardreg(struct hardreg* reg);
 
 extern int is_pseudo_in_register(pseudo_t pseudo);
 
@@ -264,6 +286,7 @@ extern void wire_up_bb_recursively(struct basic_block* bb,
 extern void generate_ep(struct entrypoint* ep);
 
 extern int compile_symbol_list(struct symbol_list *list);
+extern void emit_initializer(void);
 
 extern const char* show_simple_pseudo(struct bb_state* state, pseudo_t pseudo);
 extern const char* show_value(struct expression* expr);

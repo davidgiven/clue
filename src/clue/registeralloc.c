@@ -21,11 +21,15 @@ struct hardreg frameoffset_reg;
 struct hardreg hardregs[NUM_REGS];
 static struct pinfo_list* dying_pinfos = NULL;
 
-enum
+const static int type_to_regtype[] =
 {
-	TAG_MORIBUND = 1,
-	TAG_DIRTY
+		[TYPE_INT] = REGTYPE_INT,
+		[TYPE_FLOAT] = REGTYPE_FLOAT,
+		[TYPE_PTR] = REGTYPE_INT, /* actually refers to the offset part */
+		[TYPE_FNPTR] = REGTYPE_FPTR,
+		[TYPE_FN] = REGTYPE_FPTR,
 };
+
 
 void init_register_allocator(void)
 {
@@ -46,7 +50,7 @@ const char* show_hardreg(struct hardreg* reg)
 	else if (reg == &frameoffset_reg)
 		return "fp";
 	else
-		return aprintf("H%d", reg->number);
+		return cg->get_register_name(reg);
 }
 
 /* Generate a string name of a hardregref. */
@@ -104,23 +108,48 @@ void untouch_hardregs(void)
 	{
 		struct hardreg* reg = &hardregs[i];
 
+		reg->name = NULL;
+		reg->regclass = NUM_REG_CLASSES;
 		reg->touched = 0;
 	}
+
+	cg->reset_registers();
 }
 
 /* Allocate an unused hardreg. */
 
-struct hardreg* allocate_hardreg(void)
+struct hardreg* allocate_hardreg(int regtype)
 {
+	/* Look for a register that's unused and can store the given type
+	 * (either because it's an allocated register with a matching
+	 * register class or because it's an unallocated register).
+	 */
+
 	int i;
 	for (i = 0; i < NUM_REGS; i++)
 	{
 		struct hardreg* reg = &hardregs[i];
 
-		if (reg->busy == 0)
+		if ((reg->busy == 0) &&
+			((reg->regclass == NUM_REG_CLASSES) ||
+					(cg->register_class[reg->regclass] & regtype)))
 		{
 			reg->busy = 1;
 			reg->touched = 1;
+			if (!reg->name)
+			{
+				/* Find which register class can store this register type. */
+
+				i = 0;
+				for (i = 0; i < NUM_REG_CLASSES; i++)
+					if (cg->register_class[i] & regtype)
+						reg->regclass = i;
+
+				cg->init_register(reg, 0);
+
+				cg->comment("hardreg %s assigned to register class %d\n",
+						show_hardreg(reg), reg->regclass);
+			}
 			return reg;
 		}
 	}
@@ -149,10 +178,13 @@ void create_hardregref(struct hardregref* hrf, pseudo_t pseudo)
 	{
 		/* This pseudo has not been placed in a register. */
 
+		int regtype = type_to_regtype[pinfo->type];
+		assert(regtype);
+
 		hrf->type = pinfo->type;
-		hrf->simple = allocate_hardreg();
+		hrf->simple = allocate_hardreg(regtype);
 		if (hrf->type == TYPE_PTR)
-			hrf->base = allocate_hardreg();
+			hrf->base = allocate_hardreg(REGTYPE_OPTR);
 		else
 			hrf->base = NULL;
 		put_pseudo_in_hardregref(pseudo, hrf);
@@ -178,7 +210,7 @@ void clone_ptr_hardregref(struct hardregref* src, struct hardregref* hrf,
 	if (pinfo->reg.type == TYPE_NONE)
 	{
 		hrf->type = pinfo->type;
-		hrf->simple = allocate_hardreg();
+		hrf->simple = allocate_hardreg(REGTYPE_INT);
 		hrf->base = src->base;
 		hrf->base->busy++;
 		put_pseudo_in_hardregref(pseudo, hrf);
@@ -228,6 +260,12 @@ void unref_hardregref(struct hardregref* hrf)
 			if (hrf->simple->busy == 0)
 				cg->comment("hardreg %s now unused\n", show_hardreg(hrf->simple));
 	}
+}
+
+void unref_hardreg(struct hardreg* reg)
+{
+	assert(reg->busy > 0);
+	reg->busy--;
 }
 
 /* Marks a pseudo as being stored in a particular hardregref. */
