@@ -1,16 +1,16 @@
-                                   CLUE v0.2
-                                   =========
+                                  CLUE v0.3
+                                  =========
 
                             (C) 2008 David Given
-                                 2008-07-18
+                                 2008-07-19
 
 
 INTRODUCTION
 ============
 
-Clue is an experimental C compiler for Lua and Javascript. It compiles,
-eventually, ANSI C programs into a form which may be run on a standard Lua or
-Javascript interpreter.
+Clue is an experimental C compiler for Lua, Javascript and Perl. It compiles,
+eventually, ANSI C programs into a form which may be run on a standard Lua,
+Javascript or Perl 5 interpreter.
 
 Clue is EXPERIMENTAL and UNFINISHED. It is not suitable for any kind of
 production use. There are a number of C language features that are not
@@ -34,6 +34,10 @@ TO RUN PROGRAMS BUILT WITH THE JAVASCRIPT BACK END:
    ...you will need a command-line Javascript interpreter such as SpiderMonkey
    or Rhino.
 
+TO RUN PROGRAMS BUILT WITH THE PERL5 BACK END:
+   ...you will need a Perl 5 interpreter with the Time::Hires module (which
+   is normally installed automatically).
+   
 TO BUILD THE COMPILER:
    
 1. Fetch sparse 0.4.1 from here:
@@ -63,7 +67,7 @@ You may compile a C program as follows:
 
 	bin/clue -m<backend> test/helloworld.c > output.<backend>
 	
-<backend> may be lua or js.
+<backend> may be lua, js or perl5.
    
 This will read in the source file, compile it and write out the result.
 
@@ -78,15 +82,17 @@ sets up the run-time environment needed to run Clue code.
 
     ./cluerun -f output.luac
 or  ./cluerun -f output.js
+or  ./cluerun -f output.pl
 
-By default, cluerun will try to use LuaJIT for .luac files and SpiderMonkey
-for Javascript files. You can change this with the -e option, which may have
-one of the following values:
+By default, cluerun will try to use LuaJIT for .luac files, SpiderMonkey
+for .js files and Perl 5 for .pl files. You can change this with the -e
+option, which may have one of the following values:
 
     lua       standard Lua interpreter
     luajit    Mike Pall's LuaJIT
     smjs      SpiderMonkey Javascript interpreter
     rhino     Rhino Javascript interpreter
+    perl5     Perl 5 interpreter
 
 You can pass arguments to the Clue program by suffixing cluerun with a --.
 
