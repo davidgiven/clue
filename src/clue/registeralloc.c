@@ -44,11 +44,11 @@ void init_register_allocator(void)
 const char* show_hardreg(struct hardreg* reg)
 {
 	if (reg == &stackbase_reg)
-		return "stack";
+		return cg->stackname;
 	else if (reg == &stackoffset_reg)
-		return "sp";
+		return cg->spname;
 	else if (reg == &frameoffset_reg)
-		return "fp";
+		return cg->fpname;
 	else
 		return cg->get_register_name(reg);
 }
@@ -145,7 +145,7 @@ struct hardreg* allocate_hardreg(int regtype)
 					if (cg->register_class[i] & regtype)
 						reg->regclass = i;
 
-				cg->init_register(reg, 0);
+				cg->init_register(reg, reg->regclass);
 
 				cg->comment("hardreg %s assigned to register class %d\n",
 						show_hardreg(reg), reg->regclass);

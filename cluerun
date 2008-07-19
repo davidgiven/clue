@@ -32,6 +32,10 @@ validate_engine() {
 			which rhino > /dev/null
 			return $?
 			;;
+			
+		perl5)
+			which perl > /dev/null
+			return $?
 	esac
 	
 	return 1
@@ -53,6 +57,10 @@ execute_engine() {
 			
 		rhino)
 			exec rhino src/javascript/run.js "$@"
+			;;
+			
+		perl5)
+			exec perl src/perl5/run.pl "$@"
 			;;
 	esac
 	
@@ -100,6 +108,10 @@ if [ "$engine" = "" ]; then
 			
 		*.js)
 			engine=smjs
+			;;
+			
+		*.pl)
+			engine=perl5
 			;;
 			
 		*)

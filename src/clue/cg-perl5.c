@@ -28,7 +28,7 @@ static void cg_reset_registers(void)
 static void cg_init_register(struct hardreg* reg, int regclass)
 {
 	assert(!reg->name);
-	reg->name = aprintf("H%d", register_count);
+	reg->name = aprintf("$H%d", register_count);
 	register_count++;
 }
 
@@ -44,23 +44,13 @@ static const char* cg_get_register_name(struct hardreg* reg)
 
 static void cg_prologue(void)
 {
-	zprintf("require \"clue.crt\"\n");
-	zprintf("local int = clue.crt.int\n");
-	zprintf("local booland = clue.crt.booland\n");
-	zprintf("local boolor = clue.crt.boolor\n");
-	zprintf("local logand = clue.crt.logand\n");
-	zprintf("local logor = clue.crt.logor\n");
-	zprintf("local logxor = clue.crt.logxor\n");
-	zprintf("local lognot = clue.crt.lognot\n");
-	zprintf("local shl = clue.crt.shl\n");
-	zprintf("local shr = clue.crt.shr\n");
-	zprintf("local _memcpy = _memcpy\n");
 }
 
 /* Emit the file epilogue. */
 
 static void cg_epilogue(void)
 {
+	zprintf("return 1;\n");
 }
 
 /* Emit a comment (contains no actual code). */
@@ -71,7 +61,7 @@ static void cg_comment(const char* format, ...)
 	{
 		va_list ap;
 		va_start(ap, format);
-		zprintf("-- ");
+		zprintf("# ");
 		zvprintf(format, ap);
 		va_end(ap);
 	}
@@ -79,36 +69,32 @@ static void cg_comment(const char* format, ...)
 
 static void cg_declare(struct symbol* sym)
 {
-	zprintf("local %s\n", show_symbol_mangled(sym));
+//zprintf("my $%s;\n", show_symbol_mangled(sym));
 }
 
 static void cg_create_storage(struct symbol* sym)
 {
-	zprintf("%s = {}\n", show_symbol_mangled(sym));
+	zprintf("$%s = [];\n", show_symbol_mangled(sym));
 }
 
 static void cg_import(struct symbol* sym)
 {
-	const char* s = show_symbol_mangled(sym);
-	zprintf("%s = _G.%s\n", s, s);
 }
 
 static void cg_export(struct symbol* sym)
 {
-	const char* s = show_symbol_mangled(sym);
-	zprintf("_G.%s = %s\n", s, s);
 }
 
 static void cg_function_prologue(struct symbol* sym)
 {
 	if (!sym)
 	{
-		zprintf("local function initializer(");
+		zprintf("clue_add_initializer(sub {\n");
 		function_is_initializer = 1;
 	}
 	else
 	{
-		zprintf("%s = function(", show_symbol_mangled(sym));
+		zprintf("$%s = sub {\n", show_symbol_mangled(sym));
 		function_is_initializer = 0;
 	}
 
@@ -119,18 +105,22 @@ static void cg_function_prologue_arg(struct hardreg* reg)
 {
 	if (function_arg_list > 0)
 		zprintf(", ");
+	else
+		zprintf("my (");
+
 	zprintf("%s", show_hardreg(reg));
 	function_arg_list++;
 }
 
 static void cg_function_prologue_reg(struct hardreg* reg)
 {
-	if (function_arg_list != -1)
+	if (function_arg_list > 0)
 	{
-		zprintf(")\n");
+		zprintf(") = @_;\n");
 		function_arg_list = -1;
 	}
-	zprintf("local %s\n", show_hardreg(reg));
+
+	zprintf("my %s;\n", show_hardreg(reg));
 }
 
 static void cg_function_prologue_end(void)
@@ -139,40 +129,33 @@ static void cg_function_prologue_end(void)
 
 static void cg_function_epilogue(void)
 {
-	zprintf("end\n\n");
 	if (function_is_initializer)
-		zprintf("clue.crt.add_initializer(initializer)\n");
+		zprintf("});\n\n");
+	else
+		zprintf("};\n\n");
 }
 
 /* Starts a basic block. */
 
-static void cg_bb_start(struct binfo* bb)
+static void cg_bb_start(struct binfo* binfo)
 {
-	zprintf("__LABEL = %d\n", bb->id);
+	if (binfo->id != 0)
+		zprintf("L_%d:\n", binfo->id);
 }
 
 /* Ends a basic block in an unconditional jump. */
 
 static void cg_bb_end_jump(struct binfo* target)
 {
-	zprintf("__GOTO = %d\n", target->id);
+	zprintf("goto L_%d;\n", target->id);
 }
 
-/* Ends a basic block in a conditional jump based on an arithmetic value. */
+/* Ends a basic block in a conditional jump based on any value. */
 
-static void cg_bb_end_if_arith(struct hardreg* cond,
+static void cg_bb_end_if(struct hardreg* cond,
 		struct binfo* truetarget, struct binfo* falsetarget)
 {
-	zprintf("if %s ~= 0 then __GOTO = %d else __GOTO = %d end\n",
-			show_hardreg(cond), truetarget->id, falsetarget->id);
-}
-
-/* Ends a basic block in a conditional jump based on a pointer base value. */
-
-static void cg_bb_end_if_ptr(struct hardreg* cond,
-		struct binfo* truetarget, struct binfo* falsetarget)
-{
-	zprintf("if %s then __GOTO = %d else __GOTO = %d end\n",
+	zprintf("if (%s) { goto L_%d; } else { goto L_%d; }\n",
 			show_hardreg(cond), truetarget->id, falsetarget->id);
 }
 
@@ -181,7 +164,7 @@ static void cg_bb_end_if_ptr(struct hardreg* cond,
 static void cg_copy(struct hardreg* src, struct hardreg* dest)
 {
 	if (src != dest)
-		zprintf("%s = %s\n", show_hardreg(dest), show_hardreg(src));
+		zprintf("%s = %s;\n", show_hardreg(dest), show_hardreg(src));
 }
 
 /* Loads a value from a memory location. */
@@ -189,7 +172,7 @@ static void cg_copy(struct hardreg* src, struct hardreg* dest)
 static void cg_load(struct hardreg* simple, struct hardreg* base,
 		int offset, struct hardreg* dest)
 {
-	zprintf("%s = %s[%s + %d]\n",
+	zprintf("%s = %s->[%s + %d];\n",
 			show_hardreg(dest),
 			show_hardreg(base),
 			show_hardreg(simple),
@@ -203,7 +186,7 @@ static void cg_store(struct hardreg* simple, struct hardreg* base,
 {
 	if (simple)
 	{
-		zprintf("%s[%s + %d] = %s\n",
+		zprintf("%s->[%s + %d] = %s;\n",
 				show_hardreg(base),
 				show_hardreg(simple),
 				offset,
@@ -211,7 +194,7 @@ static void cg_store(struct hardreg* simple, struct hardreg* base,
 	}
 	else
 	{
-		zprintf("%s[%d] = %s\n",
+		zprintf("%s->[%d] = %s;\n",
 				show_hardreg(base),
 				offset,
 				show_hardreg(src));
@@ -222,43 +205,43 @@ static void cg_store(struct hardreg* simple, struct hardreg* base,
 
 static void cg_set_int(long long int value, struct hardreg* dest)
 {
-	zprintf("%s = %lld\n", show_hardreg(dest), value);
+	zprintf("%s = %lld;\n", show_hardreg(dest), value);
 }
 
 /* Load a constant float. */
 
 static void cg_set_float(long double value, struct hardreg* dest)
 {
-	zprintf("%s = %llf\n", show_hardreg(dest), value);
+	zprintf("%s = %llf;\n", show_hardreg(dest), value);
 }
 
 /* Load a constant symbol. */
 
 static void cg_set_symbol(struct symbol* sym, struct hardreg* dest)
 {
-	zprintf("%s = %s\n", show_hardreg(dest),
-			sym ? show_symbol_mangled(sym) : "nil");
+	zprintf("%s = $%s;\n", show_hardreg(dest),
+			sym ? show_symbol_mangled(sym) : "undef");
 }
 
 /* Convert to integer. */
 
 static void cg_toint(struct hardreg* src, struct hardreg* dest)
 {
-	zprintf("%s = int(%s)\n", show_hardreg(dest), show_hardreg(src));
+	zprintf("%s = int(%s);\n", show_hardreg(dest), show_hardreg(src));
 }
 
 /* Arithmetic negation. */
 
 static void cg_negate(struct hardreg* src, struct hardreg* dest)
 {
-	zprintf("%s = -%s\n", show_hardreg(dest), show_hardreg(src));
+	zprintf("%s = -%s;\n", show_hardreg(dest), show_hardreg(src));
 }
 
 #define SIMPLE_INFIX_2OP(NAME, OP) \
 	static void cg_##NAME(struct hardreg* src1, struct hardreg* src2, \
 			struct hardreg* dest) \
 	{ \
-		zprintf("%s = %s " OP " %s\n", show_hardreg(dest), \
+		zprintf("%s = %s " OP " %s;\n", show_hardreg(dest), \
 				show_hardreg(src1), show_hardreg(src2)); \
 	}
 
@@ -266,97 +249,67 @@ SIMPLE_INFIX_2OP(add, "+")
 SIMPLE_INFIX_2OP(subtract, "-")
 SIMPLE_INFIX_2OP(multiply, "*")
 SIMPLE_INFIX_2OP(divide, "/")
-SIMPLE_INFIX_2OP(mod, "%")
-
-#define SIMPLE_PREFIX_2OP(NAME, OP) \
-	static void cg_##NAME(struct hardreg* src1, struct hardreg* src2, \
-			struct hardreg* dest) \
-	{ \
-		zprintf("%s = " OP "(%s, %s)\n", show_hardreg(dest), \
-				show_hardreg(src1), show_hardreg(src2)); \
-	}
-
-SIMPLE_PREFIX_2OP(logand, "logand")
-SIMPLE_PREFIX_2OP(logor, "logor")
-SIMPLE_PREFIX_2OP(logxor, "logxor")
-SIMPLE_PREFIX_2OP(booland, "booland")
-SIMPLE_PREFIX_2OP(boolor, "boolor")
-SIMPLE_PREFIX_2OP(shl, "shl")
-SIMPLE_PREFIX_2OP(shr, "shr")
+SIMPLE_INFIX_2OP(mod, "%%")
+SIMPLE_INFIX_2OP(logand, "&")
+SIMPLE_INFIX_2OP(logor, "|")
+SIMPLE_INFIX_2OP(logxor, "^")
+SIMPLE_INFIX_2OP(shl, "<<")
+SIMPLE_INFIX_2OP(shr, ">>")
 
 #define SIMPLE_SET_2OP(NAME, OP) \
 	static void cg_##NAME(struct hardreg* src1, struct hardreg* src2, \
 			struct hardreg* dest) \
 	{ \
-		zprintf("%s = %s " OP " %s and 1 or 0\n", show_hardreg(dest), \
+		zprintf("%s = (%s " OP " %s) ? 1 : 0;\n", show_hardreg(dest), \
 				show_hardreg(src1), show_hardreg(src2)); \
 	}
 
+SIMPLE_SET_2OP(booland, "&&")
+SIMPLE_SET_2OP(boolor, "||")
 SIMPLE_SET_2OP(set_gt, ">")
 SIMPLE_SET_2OP(set_ge, ">=")
 SIMPLE_SET_2OP(set_lt, "<")
 SIMPLE_SET_2OP(set_le, "<=")
 SIMPLE_SET_2OP(set_eq, "==")
-SIMPLE_SET_2OP(set_ne, "~=")
+SIMPLE_SET_2OP(set_ne, "!=")
 
-/* Select operations using an arithmetic condition. */
+/* Select operations using any condition. */
 
-static void cg_select_arith(struct hardreg* cond,
+static void cg_select(struct hardreg* cond,
 		struct hardreg* dest1, struct hardreg* dest2,
 		struct hardreg* true1, struct hardreg* true2,
 		struct hardreg* false1, struct hardreg* false2)
 {
-	zprintf("if %s ~= 0 then ", show_hardreg(cond));
+	zprintf("if (%s) ", show_hardreg(cond));
 	if (dest2)
-		zprintf("%s = %s %s = %s else %s = %s %s = %s",
+		zprintf("{ %s = %s; %s = %s; } else { %s = %s; %s = %s; }",
 				show_hardreg(dest1), show_hardreg(true1),
 				show_hardreg(dest2), show_hardreg(true2),
 				show_hardreg(dest1), show_hardreg(false1),
 				show_hardreg(dest2), show_hardreg(false2));
 	else
-		zprintf("%s = %s else %s = %s",
+		zprintf("{ %s = %s; } else { %s = %s; }",
 				show_hardreg(dest1), show_hardreg(true1),
 				show_hardreg(dest1), show_hardreg(false1));
-	zprintf(" end\n");
-}
-
-/* Select operations using a pointer condition. */
-
-static void cg_select_ptr(struct hardreg* cond,
-		struct hardreg* dest1, struct hardreg* dest2,
-		struct hardreg* true1, struct hardreg* true2,
-		struct hardreg* false1, struct hardreg* false2)
-{
-	zprintf("if %s then ", show_hardreg(cond));
-	if (dest2)
-		zprintf("%s = %s %s = %s else %s = %s %s = %s",
-				show_hardreg(dest1), show_hardreg(true1),
-				show_hardreg(dest2), show_hardreg(true2),
-				show_hardreg(dest1), show_hardreg(false1),
-				show_hardreg(dest2), show_hardreg(false2));
-	else
-		zprintf("%s = %s else %s = %s",
-				show_hardreg(dest1), show_hardreg(true1),
-				show_hardreg(dest1), show_hardreg(false1));
-	zprintf(" end\n");
+	zprintf("\n");
 }
 
 static void cg_call_returning_void(struct hardreg* func)
 {
-	zprintf("%s(", show_hardreg(func));
+	zprintf("%s->(", show_hardreg(func));
 	function_arg_list = 0;
 }
 
 static void cg_call_returning_arith(struct hardreg* func, struct hardreg* dest)
 {
-	zprintf("%s = %s(", show_hardreg(dest), show_hardreg(func));
+	zprintf("%s = %s->(", show_hardreg(dest), show_hardreg(func));
 	function_arg_list = 0;
 }
 
 static void cg_call_returning_ptr(struct hardreg* func,
-		struct hardreg* dest1, struct hardreg* dest2)
+		struct hardreg* desto, struct hardreg* destd)
 {
-	zprintf("%s, %s = %s(", show_hardreg(dest1), show_hardreg(dest2),
+	zprintf("(%s, %s) = %s->(", show_hardreg(desto), show_hardreg(destd),
 			show_hardreg(func));
 	function_arg_list = 0;
 }
@@ -371,28 +324,28 @@ static void cg_call_arg(struct hardreg* arg)
 
 static void cg_call_end(void)
 {
-	zprintf(")\n");
+	zprintf(");\n");
 }
 
 /* Return void. */
 
 static void cg_return_void(void)
 {
-	zprintf("do return end\n");
+	zprintf("return;\n");
 }
 
 /* Return an arithmetic value. */
 
 static void cg_return_arith(struct hardreg* src)
 {
-	zprintf("do return %s end\n", show_hardreg(src));
+	zprintf("return %s;\n", show_hardreg(src));
 }
 
 /* Return a pointer. */
 
 static void cg_return_ptr(struct hardreg* simple, struct hardreg* base)
 {
-	zprintf("do return %s, %s end\n",
+	zprintf("return %s, %s;\n",
 				show_hardreg(simple),
 				show_hardreg(base));
 }
@@ -404,7 +357,7 @@ static void cg_memcpy(struct hardregref* src, struct hardregref* dest, int size)
 	assert(src->type == TYPE_PTR);
 	assert(dest->type == TYPE_PTR);
 
-	zprintf("_memcpy(sp, stack, %s, %s, %s, %s, %d)\n",
+	zprintf("_memcpy(sp, stack, %s, %s, %s, %s, %d);\n",
 			show_hardreg(dest->simple),
 			show_hardreg(dest->base),
 			show_hardreg(src->simple),
@@ -413,16 +366,16 @@ static void cg_memcpy(struct hardregref* src, struct hardregref* dest, int size)
 }
 
 
-const struct codegenerator cg_lua =
+const struct codegenerator cg_perl5 =
 {
-	.pointer_zero_offset = 1,
-	.spname = "sp",
-	.fpname = "fp",
-	.stackname = "stack",
+	.pointer_zero_offset = 0,
+	.spname = "$sp",
+	.fpname = "$fp",
+	.stackname = "$stack",
 
 	.register_class =
 	{
-		[0] = REGTYPE_ALL
+		[0] = REGTYPE_ALL,
 	},
 	.reset_registers = cg_reset_registers,
 	.init_register = cg_init_register,
@@ -446,8 +399,8 @@ const struct codegenerator cg_lua =
 
 	.bb_start = cg_bb_start,
 	.bb_end_jump = cg_bb_end_jump,
-	.bb_end_if_arith = cg_bb_end_if_arith,
-	.bb_end_if_ptr = cg_bb_end_if_ptr,
+	.bb_end_if_arith = cg_bb_end_if,
+	.bb_end_if_ptr = cg_bb_end_if,
 
 	.copy = cg_copy,
 	.load = cg_load,
@@ -479,8 +432,8 @@ const struct codegenerator cg_lua =
 	.set_eq = cg_set_eq,
 	.set_ne = cg_set_ne,
 
-	.select_ptr = cg_select_ptr,
-	.select_arith = cg_select_arith,
+	.select_ptr = cg_select,
+	.select_arith = cg_select,
 
 	.call_returning_void = cg_call_returning_void,
 	.call_returning_arith = cg_call_returning_arith,

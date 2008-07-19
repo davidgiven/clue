@@ -1,51 +1,59 @@
 These are the benchmark results that are produced by my computer.
 
-The Computer Language Benchmark Game benchmarks:
+The Computer Language Benchmark Game benchmarks (these are known to
+be really poor benchmarks, I'm mostly using them for unit tests):
 
 ---snip---
 			time	comparison factor
 clbg-binary-trees:
-gcc:	   0.054	   1.000
-lua:	   3.866	  70.975
-luajit:	   2.735	  50.216
-smjs:	  15.918	 292.214
-rhino:	   8.485	 155.762
+gcc:	   0.058	   1.000
+lua:	   4.120	  70.721
+luajit:	   2.842	  48.781
+smjs:	  20.798	 357.023
+rhino:	  11.983	 205.704
+perl5:	  16.554	 284.178
 clbg-mandelbrot:
-gcc:	   0.296	   1.000
-lua:	  23.381	  78.964
-luajit:	   3.209	  10.837
-smjs:	  76.632	 258.803
-rhino:	  28.571	  96.491
+gcc:	   0.319	   1.000
+lua:	  29.230	  91.737
+luajit:	   3.546	  11.128
+smjs:	  87.177	 273.600
+rhino:	  30.841	  96.794
+perl5:	 165.717	 520.094
 clbg-partialsums:
-gcc:	   0.241	   1.000
-lua:	   1.091	   4.530
-luajit:	   0.431	   1.790
-smjs:	   5.522	  22.924
-rhino:	   4.885	  20.281
+gcc:	   0.339	   1.000
+lua:	   1.321	   3.897
+luajit:	   0.718	   2.120
+smjs:	   7.293	  21.520
+rhino:	   5.126	  15.124
+perl5:	  20.569	  60.689
 clbg-fannkuch:
-gcc:	   0.006	   1.000
-lua:	   0.008	   1.241
-luajit:	   0.014	   2.213
-smjs:	   1.352	 221.333
-rhino:	   2.917	 477.558
+gcc:	   0.007	   1.000
+lua:	   0.009	   1.282
+luajit:	   0.014	   2.061
+smjs:	   1.399	 205.148
+rhino:	   3.662	 536.941
+perl5:	   8.619	 1263.751
 clbg-recursive:
-gcc:	   0.171	   1.000
-lua:	   1.750	  10.224
-luajit:	   0.383	   2.238
-smjs:	  18.144	 106.004
-rhino:	   9.937	  58.055
+gcc:	   0.169	   1.000
+lua:	   1.855	  10.978
+luajit:	   0.385	   2.280
+smjs:	  19.074	 112.859
+rhino:	  10.495	  62.102
+perl5:	  45.717	 270.512
 clbg-n-body:
 gcc:	   0.038	   1.000
-lua:	   2.483	  65.160
-luajit:	   0.528	  13.845
-smjs:	   9.788	 256.888
-rhino:	   6.235	 163.637
+lua:	   2.850	  74.251
+luajit:	   0.529	  13.791
+smjs:	  13.582	 353.878
+rhino:	   7.512	 195.730
+perl5:	  24.579	 640.399
 clbg-nsieve:
-gcc:	   0.116	   1.000
-lua:	   2.615	  22.451
-luajit:	   1.399	  12.006
-smjs:	  15.712	 134.872
-rhino:	  12.155	 104.337
+gcc:	   0.115	   1.000
+lua:	   2.879	  24.971
+luajit:	   1.492	  12.942
+smjs:	  17.906	 155.290
+rhino:	  14.323	 124.218
+perl5:	   8.473	  73.481
 ---snip---
 
 The time column indicates the absolute time in seconds; the comparison
@@ -64,27 +72,27 @@ gcc:
 ---snip---
 Calibrate
        0.01 Seconds          1   Passes (x 100)
-       0.05 Seconds          5   Passes (x 100)
-       0.27 Seconds         25   Passes (x 100)
-       1.33 Seconds        125   Passes (x 100)
-       7.14 Seconds        625   Passes (x 100)
+       0.06 Seconds          5   Passes (x 100)
+       0.33 Seconds         25   Passes (x 100)
+       1.40 Seconds        125   Passes (x 100)
+       9.09 Seconds        625   Passes (x 100)
 
-Use 8754  passes (x 100)
+Use 6873  passes (x 100)
 
           C/C++ Whetstone Benchmark
 
 Loop content                  Result              MFLOPS      MOPS   Seconds
 
-N1 floating point     -1.12398255667393521       547.695              0.307
-N2 floating point     -1.12187079889296970       304.944              3.858
-N3 if then else        1.00000000000000000                4041.803    0.224
-N4 fixed point        12.00000000000000000               12808.822    0.215
-N5 sin,cos etc.        0.49902937281515769                  31.810   22.897
-N6 floating point      0.99999987890803044       117.601             40.152
-N7 assignments         3.00000000000000000                 273.160    5.922
-N8 exp,sqrt etc.       0.75100163018458566                  12.079   26.960
+N1 floating point     -1.12398255667393521       482.905              0.273
+N2 floating point     -1.12187079889296970       259.595              3.558
+N3 if then else        1.00000000000000000                3426.471    0.208
+N4 fixed point        12.00000000000000000               12391.085    0.175
+N5 sin,cos etc.        0.49902937281515769                  25.222   22.672
+N6 floating point      0.99999987890803044       102.816             36.058
+N7 assignments         3.00000000000000000                 251.072    5.059
+N8 exp,sqrt etc.       0.75100163018458566                  11.400   22.429
 
-MWIPS                                            870.741            100.535
+MWIPS                                            760.028             90.431
 
 ---snip---
 
@@ -92,26 +100,26 @@ Lua interpreter:
 
 ---snip---
 Calibrate
-       1.00 Seconds          1   Passes (x 100)
-       1.00 Seconds          5   Passes (x 100)
-       8.00 Seconds         25   Passes (x 100)
+       0.00 Seconds          1   Passes (x 100)
+       2.00 Seconds          5   Passes (x 100)
+       7.00 Seconds         25   Passes (x 100)
 
-Use 312  passes (x 100)
+Use 357  passes (x 100)
 
           C/C++ Whetstone Benchmark
 
 Loop content                  Result              MFLOPS      MOPS   Seconds
 
-N1 floating point     -1.13333333333333330        14.973              0.400
-N2 floating point     -1.13333333333333330        10.485              3.999
-N3 if then else        1.00000000000000000                   4.613    7.000
-N4 fixed point        12.00000000000000000                  19.656    5.000
-N5 sin,cos etc.        0.50000000000000000                   5.191    5.001
-N6 floating point      1.00000000000000000         4.105             41.000
-N7 assignments         3.00000000000000000                   3.035   18.999
-N8 exp,sqrt etc.       0.75000000000000000                   2.321    5.000
+N1 floating point     -1.13333333333333330        11.424              0.600
+N2 floating point     -1.13333333333333330        11.996              4.000
+N3 if then else        1.00000000000000000                   4.618    8.001
+N4 fixed point        12.00000000000000000                  18.742    6.000
+N5 sin,cos etc.        0.50000000000000000                   4.243    7.000
+N6 floating point      1.00000000000000000         3.633             53.000
+N7 assignments         3.00000000000000000                   2.868   23.000
+N8 exp,sqrt etc.       0.75000000000000000                   2.213    6.000
 
-MWIPS                                             36.111             86.399
+MWIPS                                             33.178            107.600
 
 ---snip---
 
@@ -120,26 +128,26 @@ LuaJIT:
 ---snip---
 Calibrate
        0.00 Seconds          1   Passes (x 100)
-       0.00 Seconds          5   Passes (x 100)
-       2.00 Seconds         25   Passes (x 100)
-       8.00 Seconds        125   Passes (x 100)
+       1.00 Seconds          5   Passes (x 100)
+       1.00 Seconds         25   Passes (x 100)
+       8.10 Seconds        125   Passes (x 100)
 
-Use 1562  passes (x 100)
+Use 1543  passes (x 100)
 
           C/C++ Whetstone Benchmark
 
 Loop content                  Result              MFLOPS      MOPS   Seconds
 
-N1 floating point     -1.13333333333333330        59.983              0.500
-N2 floating point     -1.13333333333333330        69.971              3.000
-N3 if then else        1.00000000000000000                  32.331    5.000
-N4 fixed point        12.00000000000000000                  82.005    6.000
-N5 sin,cos etc.        0.50000000000000000                  16.246    7.999
-N6 floating point      1.00000000000000000        18.723             45.000
-N7 assignments         3.00000000000000000                  12.550   23.001
-N8 exp,sqrt etc.       0.75000000000000000                   8.302    6.999
+N1 floating point     -1.13333333333333330        59.251              0.500
+N2 floating point     -1.13333333333333330        69.117              3.000
+N3 if then else        1.00000000000000000                  26.618    6.000
+N4 fixed point        12.00000000000000000                  81.006    6.000
+N5 sin,cos etc.        0.50000000000000000                  14.265    8.999
+N6 floating point      1.00000000000000000        15.704             53.000
+N7 assignments         3.00000000000000000                  11.881   24.000
+N8 exp,sqrt etc.       0.75000000000000000                   9.566    6.001
 
-MWIPS                                            160.205             97.500
+MWIPS                                            143.535            107.500
 
 ---snip---
 
@@ -147,25 +155,25 @@ SpiderMonkey:
 
 --snip---
 Calibrate
-       0.92 Seconds          1   Passes (x 100)
-       4.59 Seconds          5   Passes (x 100)
+       1.00 Seconds          1   Passes (x 100)
+       4.87 Seconds          5   Passes (x 100)
 
-Use 109  passes (x 100)
+Use 103  passes (x 100)
 
           C/C++ Whetstone Benchmark
 
 Loop content                  Result              MFLOPS      MOPS   Seconds
 
-N1 floating point     -1.13333333333333330         2.447              0.855
-N2 floating point     -1.13333333333333330         2.502              5.854
-N3 if then else        1.00000000000000000                   1.712    6.588
-N4 fixed point        12.00000000000000000                   3.978    8.631
-N5 sin,cos etc.        0.50000000000000000                   1.280    7.087
-N6 floating point      1.00000000000000000         1.281             45.888
-N7 assignments         3.00000000000000000                   0.964   20.897
-N8 exp,sqrt etc.       0.75000000000000000                   0.840    4.830
+N1 floating point     -1.13333333333333330         2.216              0.892
+N2 floating point     -1.13333333333333330         2.349              5.893
+N3 if then else        1.00000000000000000                   1.612    6.612
+N4 fixed point        12.00000000000000000                   3.712    8.741
+N5 sin,cos etc.        0.50000000000000000                   1.219    7.029
+N6 floating point      1.00000000000000000         1.196             46.451
+N7 assignments         3.00000000000000000                   0.901   21.136
+N8 exp,sqrt etc.       0.75000000000000000                   0.774    4.952
 
-MWIPS                                             10.832            100.630
+MWIPS                                             10.127            101.706
 
 ---snip---
 
@@ -173,25 +181,50 @@ Rhino:
 
 ---snip---
 Calibrate
-       1.40 Seconds          1   Passes (x 100)
-       5.19 Seconds          5   Passes (x 100)
+       1.55 Seconds          1   Passes (x 100)
+       5.40 Seconds          5   Passes (x 100)
 
-Use 96  passes (x 100)
+Use 93  passes (x 100)
 
           C/C++ Whetstone Benchmark
 
 Loop content                  Result              MFLOPS      MOPS   Seconds
 
-N1 floating point     -1.13333333333333330         5.159              0.357
-N2 floating point     -1.13333333333333330         5.310              2.430
-N3 if then else        1.00000000000000000                   1.018    9.764
-N4 fixed point        12.00000000000000000                   4.747    6.371
-N5 sin,cos etc.        0.50000000000000000                   1.670    4.782
-N6 floating point      1.00000000000000000         1.180             43.900
-N7 assignments         3.00000000000000000                   0.671   26.431
-N8 exp,sqrt etc.       0.75000000000000000                   0.645    5.540
+N1 floating point     -1.13333333333333330         4.907              0.364
+N2 floating point     -1.13333333333333330         5.038              2.481
+N3 if then else        1.00000000000000000                   0.982    9.804
+N4 fixed point        12.00000000000000000                   4.506    6.501
+N5 sin,cos etc.        0.50000000000000000                   1.556    4.972
+N6 floating point      1.00000000000000000         1.113             45.056
+N7 assignments         3.00000000000000000                   0.621   27.665
+N8 exp,sqrt etc.       0.75000000000000000                   0.615    5.624
 
-MWIPS                                              9.641             99.575
+MWIPS                                              9.076            102.467
+
+---snip---
+
+Perl 5:
+
+---snip---
+Calibrate
+       5.92 Seconds          1   Passes (x 100)
+
+Use 16  passes (x 100)
+
+          C/C++ Whetstone Benchmark
+
+Loop content                  Result              MFLOPS      MOPS   Seconds
+
+N1 floating point     -1.13333333333333330         1.515              0.203
+N2 floating point     -1.13333333333333330         2.081              1.033
+N3 if then else        1.00000000000000000                   0.137   12.100
+N4 fixed point        12.00000000000000000                   0.936    5.387
+N5 sin,cos etc.        0.50000000000000000                   0.685    1.945
+N6 floating point      1.00000000000000000         0.206             41.881
+N7 assignments         3.00000000000000000                   0.106   27.814
+N8 exp,sqrt etc.       0.75000000000000000                   0.135    4.416
+
+MWIPS                                              1.688             94.778
 
 ---snip---
 

@@ -48,6 +48,12 @@ static void cg_prologue(void)
 {
 }
 
+/* Emit the file epilogue. */
+
+static void cg_epilogue(void)
+{
+}
+
 /* Emit a comment (contains no actual code). */
 
 static void cg_comment(const char* format, ...)
@@ -373,6 +379,9 @@ static void cg_memcpy(struct hardregref* src, struct hardregref* dest, int size)
 const struct codegenerator cg_javascript =
 {
 	.pointer_zero_offset = 0,
+	.spname = "sp",
+	.fpname = "fp",
+	.stackname = "stack",
 
 	.register_class =
 	{
@@ -383,6 +392,7 @@ const struct codegenerator cg_javascript =
 	.get_register_name = cg_get_register_name,
 
 	.prologue = cg_prologue,
+	.epilogue = cg_epilogue,
 	.comment = cg_comment,
 
 	.declare = cg_declare,
@@ -408,7 +418,8 @@ const struct codegenerator cg_javascript =
 
 	.set_int = cg_set_int,
 	.set_float = cg_set_float,
-	.set_symbol = cg_set_symbol,
+	.set_osymbol = cg_set_symbol,
+	.set_fsymbol = cg_set_symbol,
 
 	.toint = cg_toint,
 	.negate = cg_negate,

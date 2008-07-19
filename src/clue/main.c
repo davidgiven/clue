@@ -67,7 +67,8 @@ static struct
 }
 generator_table[] = {
 	{ "-mlua",     &cg_lua },
-	{ "-mjs",      &cg_javascript }
+	{ "-mjs",      &cg_javascript },
+	{ "-mperl5",   &cg_perl5 },
 };
 
 static void init_code_generator(int* argc, const char* argv[])
@@ -140,6 +141,7 @@ int main(int argc, const char* argv[])
 	zprintf("\n");
 
 	emit_initializer();
+	cg->epilogue();
 
 	if (die_if_error)
 		return 1;

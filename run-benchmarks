@@ -67,4 +67,10 @@ for i = 1, #benchdata do
 	local rhinotime = socket.gettime() - t
 	print("rhino:", pn(rhinotime), pn(rhinotime / gcctime))
 	
+	exec("./bin/clue -mperl5 test/"..name..".c > /tmp/benchmark.pl")
+	
+	t = socket.gettime()
+	exec("./cluerun -e perl5 -f /tmp/benchmark.pl -- "..arg.." > /dev/null")
+	local perl5time = socket.gettime() - t
+	print("perl5:", pn(perl5time), pn(perl5time / gcctime))	
 end

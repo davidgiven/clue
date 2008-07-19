@@ -157,6 +157,9 @@ extern struct hardreg hardregs[NUM_REGS];
 struct codegenerator
 {
 	int pointer_zero_offset;
+	const char* spname;
+	const char* fpname;
+	const char* stackname;
 	int register_class[NUM_REG_CLASSES];
 
 	void (*reset_registers)(void);
@@ -164,6 +167,7 @@ struct codegenerator
 	const char* (*get_register_name)(struct hardreg* reg);
 
 	void (*prologue)(void);
+	void (*epilogue)(void);
 	void (*comment)(const char* format, ...);
 
 	void (*declare)(struct symbol* sym);
@@ -196,7 +200,8 @@ struct codegenerator
 
 	void (*set_int)(long long int value, struct hardreg* dest);
 	void (*set_float)(long double value, struct hardreg* dest);
-	void (*set_symbol)(struct symbol* sym, struct hardreg* dest);
+	void (*set_osymbol)(struct symbol* sym, struct hardreg* dest);
+	void (*set_fsymbol)(struct symbol* sym, struct hardreg* dest);
 
 	void (*toint)(struct hardreg* src, struct hardreg* dest);
 	void (*negate)(struct hardreg* src, struct hardreg* dest);
@@ -248,6 +253,7 @@ struct codegenerator
 extern const struct codegenerator* cg;
 extern const struct codegenerator cg_lua;
 extern const struct codegenerator cg_javascript;
+extern const struct codegenerator cg_perl5;
 
 extern const char* aprintf(const char* fmt, ...);
 extern void zprintf(const char* fmt, ...);
