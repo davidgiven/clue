@@ -214,10 +214,10 @@ static void emit_load(struct hardregref* dest, pseudo_t pseudo)
 				/* This symbol is a global. */
 
 				if (dest->type == TYPE_FNPTR)
-					cg->set_symbol(pseudo->sym, dest->simple);
+					cg->set_fsymbol(pseudo->sym, dest->simple);
 				else
 				{
-					cg->set_symbol(pseudo->sym, dest->base);
+					cg->set_osymbol(pseudo->sym, dest->base);
 					cg->set_int(cg->pointer_zero_offset, dest->simple);
 				}
 			}
@@ -246,8 +246,13 @@ static void generate_setval(struct instruction *insn, struct bb_state *state)
 		{
 			case TYPE_PTR:
 				assert(expr->value == 0);
-				cg->set_symbol(NULL, dest.base);
+				cg->set_osymbol(NULL, dest.base);
 				cg->set_int(cg->pointer_zero_offset, dest.simple);
+				break;
+
+			case TYPE_FNPTR:
+				assert(expr->value == 0);
+				cg->set_fsymbol(NULL, dest.simple);
 				break;
 
 			default:

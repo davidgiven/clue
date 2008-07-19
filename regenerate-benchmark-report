@@ -15,7 +15,8 @@ set -e
 cat << EOF
 These are the benchmark results that are produced by my computer.
 
-The Computer Language Benchmark Game benchmarks:
+The Computer Language Benchmark Game benchmarks (these are known to
+be really poor benchmarks, I'm mostly using them for unit tests):
 
 ---snip---
 EOF
@@ -85,6 +86,17 @@ Rhino:
 EOF
 
 ./cluerun -e rhino -f /tmp/benchmark.js
+
+cat << EOF
+---snip---
+
+Perl 5:
+
+---snip---
+EOF
+
+bin/clue -mperl5 test/whetstone.c > /tmp/benchmark.pl
+./cluerun -e perl5 -f /tmp/benchmark.pl
 
 cat << EOF
 ---snip---

@@ -87,10 +87,22 @@ static int emit_array_initializer(int pos, struct expression* expr)
 
 		case EXPR_SYMBOL:
 		{
-			struct hardreg* reg = allocate_hardreg(REGTYPE_OPTR);
+			int type = get_base_type_of_symbol(expr->symbol);
+			struct hardreg* reg;
 
 			declare_symbol(expr->symbol);
-			cg->set_symbol(expr->symbol, reg);
+
+			if (type == TYPE_FN)
+			{
+				reg = allocate_hardreg(REGTYPE_FPTR);
+				cg->set_fsymbol(expr->symbol, reg);
+			}
+			else
+			{
+				reg = allocate_hardreg(REGTYPE_OPTR);
+				cg->set_osymbol(expr->symbol, reg);
+			}
+
 			cg->store(NULL, target_ptr, pos, reg);
 			pos++;
 
@@ -134,7 +146,7 @@ static void emit_array(struct symbol* sym)
 {
 	if (sym->initializer)
 	{
-		cg->set_symbol(sym, target_ptr);
+		cg->set_osymbol(sym, target_ptr);
 
 		emit_array_initializer(cg->pointer_zero_offset, sym->initializer);
 	}
@@ -148,22 +160,33 @@ static void emit_scalar(struct symbol* sym)
 	if (!expr)
 		return;
 
-	cg->set_symbol(sym, target_ptr);
+	cg->set_osymbol(sym, target_ptr);
 	switch (expr->type)
 	{
 		case EXPR_SYMBOL:
 		{
-			struct hardreg* reg = allocate_hardreg(REGTYPE_OPTR);
+			int type = get_base_type_of_symbol(expr->symbol);
+			struct hardreg* reg;
 
 			declare_symbol(expr->symbol);
-			cg->set_int(cg->pointer_zero_offset, reg);
-			cg->store(NULL, target_ptr, cg->pointer_zero_offset, reg);
 
-			unref_hardreg(reg);
-			reg = allocate_hardreg(REGTYPE_INT);
+			if (type == TYPE_FN)
+			{
+				reg = allocate_hardreg(REGTYPE_FPTR);
+				cg->set_fsymbol(expr->symbol, reg);
+				cg->store(NULL, target_ptr, cg->pointer_zero_offset, reg);
+			}
+			else
+			{
+				reg = allocate_hardreg(REGTYPE_INT);
+				cg->set_int(cg->pointer_zero_offset, reg);
+				cg->store(NULL, target_ptr, cg->pointer_zero_offset+0, reg);
+				unref_hardreg(reg);
 
-			cg->set_symbol(expr->symbol, reg);
-			cg->store(NULL, target_ptr, cg->pointer_zero_offset, reg);
+				reg = allocate_hardreg(REGTYPE_OPTR);
+				cg->set_osymbol(expr->symbol, reg);
+				cg->store(NULL, target_ptr, cg->pointer_zero_offset+1, reg);
+			}
 
 			unref_hardreg(reg);
 			break;
