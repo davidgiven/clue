@@ -113,3 +113,44 @@ void zsetbuffer(int buffer)
 		currentbuffer = &zbuffers[buffer];
 	}
 }
+
+void dump_bb(struct basic_block *bb, unsigned generation)
+{
+	struct instruction *insn;
+
+	bb->generation = generation;
+
+	printf(".L%p\n", bb);
+
+	FOR_EACH_PTR(bb->insns, insn) {
+		if (!insn->bb)
+			continue;
+		printf("\t%s\n", show_instruction(insn));
+	}
+	END_FOR_EACH_PTR(insn);
+
+	printf("\n");
+}
+
+void dump_fn(struct entrypoint *ep)
+{
+	struct basic_block *bb;
+	unsigned long generation = ++bb_generation;
+	struct symbol *sym = ep->name;
+	const char *name = show_ident(sym->ident);
+
+	if (sym->ctype.modifiers & MOD_STATIC)
+		printf("\n\n%s:\n", name);
+	else
+		printf("\n\n.globl %s\n%s:\n", name, name);
+
+	unssa(ep);
+
+	FOR_EACH_PTR(ep->bbs, bb) {
+		if (bb->generation == generation)
+			continue;
+		dump_bb(bb, generation);
+	}
+	END_FOR_EACH_PTR(bb);
+}
+
