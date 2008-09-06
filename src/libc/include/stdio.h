@@ -16,7 +16,7 @@
 
 extern int printf(const char* format, ...);
 
-typedef struct FILE FILE;
+typedef int FILE;
 extern FILE _stdin;
 extern FILE _stdout;
 extern FILE _stderr;
