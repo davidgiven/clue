@@ -42,6 +42,8 @@ int get_base_type_of_symbol(struct symbol* s)
 		return TYPE_FLOAT;
 	if (s == &ptr_ctype)
 		return TYPE_PTR;
+	if (s == &void_ctype)
+		return TYPE_VOID;
 
 	s = s->ctype.base_type;
 	if (s)

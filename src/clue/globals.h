@@ -54,6 +54,7 @@ enum
 {
 	TYPE_NONE = 0,
 	TYPE_ANY,
+	TYPE_VOID,
 	TYPE_INT,
 	TYPE_FLOAT,
 	TYPE_PTR,
@@ -74,6 +75,14 @@ enum
 
 	REGTYPE_ALL    = (1<<5)-1,
 	NUM_REG_CLASSES = 5
+};
+
+/* Special register classes. */
+
+enum
+{
+	REGCLASS_VOID = -1,
+	REGCLASS_REGPAIR = -2
 };
 
 struct bb_state
@@ -170,16 +179,22 @@ struct codegenerator
 	void (*epilogue)(void);
 	void (*comment)(const char* format, ...);
 
-	void (*declare)(struct symbol* sym);
-	void (*create_storage)(struct symbol* sym);
+	void (*declare_function)(struct symbol* sym, int returning);
+	void (*declare_function_arg)(int regclass);
+	void (*declare_function_vararg)(void);
+	void (*declare_function_end)(void);
+
+	void (*declare_slot)(struct symbol* sym, unsigned size);
+	void (*create_storage)(struct symbol* sym, unsigned size);
 	void (*import)(struct symbol* sym);
 	void (*export)(struct symbol* sym);
 
 	/* These functions will always be called in order (_arg and _reg may
 	 * be called multiple times).
 	 */
-	void (*function_prologue)(struct symbol* name);
+	void (*function_prologue)(struct symbol* name, int returning);
 	void (*function_prologue_arg)(struct hardreg* reg);
+	void (*function_prologue_vararg)(void);
 	void (*function_prologue_reg)(struct hardreg* reg);
 	void (*function_prologue_end)(void);
 
@@ -233,19 +248,16 @@ struct codegenerator
 			struct hardreg* true1, struct hardreg* true2,
 			struct hardreg* false1, struct hardreg* false2);
 
-	/* These are always called in order (okay, one call_returning(), followe
+	/* These are always called in order (okay, one call_returning(), followed
 	 * by zero or more call_reg(), followed by call_end()).
 	 */
-	void (*call_returning_void)(struct hardreg* func);
-	void (*call_returning_arith)(struct hardreg* func, struct hardreg* dest);
-	void (*call_returning_ptr)(struct hardreg* func, struct hardreg* dest1,
-			struct hardreg* dest2);
+	void (*call)(struct hardreg* func,
+			struct hardreg* dest1, struct hardreg* dest2);
 	void (*call_arg)(struct hardreg* arg);
+	void (*call_vararg)(struct hardreg* arg);
 	void (*call_end)(void);
 
-	void (*return_void)(void);
-	void (*return_arith)(struct hardreg* arg);
-	void (*return_ptr)(struct hardreg* simple, struct hardreg* base);
+	void (*ret)(struct hardreg* simple, struct hardreg* base);
 
 	void (*memcpy)(struct hardregref* src, struct hardregref* dest, int size);
 };
@@ -254,6 +266,7 @@ extern const struct codegenerator* cg;
 extern const struct codegenerator cg_lua;
 extern const struct codegenerator cg_javascript;
 extern const struct codegenerator cg_perl5;
+extern const struct codegenerator cg_c;
 
 extern const char* aprintf(const char* fmt, ...);
 extern void zprintf(const char* fmt, ...);
@@ -273,6 +286,8 @@ extern void find_hardregref(struct hardregref* hrf, pseudo_t pseudo);
 extern void create_hardregref(struct hardregref* hrf, pseudo_t pseudo);
 extern void clone_ptr_hardregref(struct hardregref* src, struct hardregref* hrf,
 		pseudo_t pseudo);
+extern int find_regclass_for_returntype(int type);
+extern int find_regclass_for_regtype(int regtype);
 extern struct hardreg* allocate_hardreg(int regtype);
 extern void unref_hardreg(struct hardreg* reg);
 
@@ -311,5 +326,7 @@ extern void rewrite_bb_recursively(struct basic_block* bb,
     unsigned long generation);
 
 struct binfo* lookup_binfo_of_basic_block(struct basic_block* binfo);
+
+extern void dump_fn(struct entrypoint *ep);
 
 #endif

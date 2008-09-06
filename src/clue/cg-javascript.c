@@ -68,12 +68,29 @@ static void cg_comment(const char* format, ...)
 	}
 }
 
-static void cg_declare(struct symbol* sym)
+static void cg_declare_slot(struct symbol* sym, unsigned size)
 {
 	zprintf("var %s;\n", show_symbol_mangled(sym));
 }
 
-static void cg_create_storage(struct symbol* sym)
+static void cg_declare_function(struct symbol* sym, int returning)
+{
+	cg_declare_slot(sym, 0);
+}
+
+static void cg_declare_function_arg(int regclass)
+{
+}
+
+static void cg_declare_function_vararg()
+{
+}
+
+static void cg_declare_function_end(void)
+{
+}
+
+static void cg_create_storage(struct symbol* sym, unsigned size)
 {
 	zprintf("%s = [];\n", show_symbol_mangled(sym));
 }
@@ -86,7 +103,7 @@ static void cg_export(struct symbol* sym)
 {
 }
 
-static void cg_function_prologue(struct symbol* sym)
+static void cg_function_prologue(struct symbol* sym, int returning)
 {
 	if (!sym)
 	{
@@ -108,6 +125,10 @@ static void cg_function_prologue_arg(struct hardreg* reg)
 		zprintf(", ");
 	zprintf("%s", show_hardreg(reg));
 	function_arg_list++;
+}
+
+static void cg_function_prologue_vararg(struct hardreg* reg)
+{
 }
 
 static void cg_function_prologue_reg(struct hardreg* reg)
@@ -294,26 +315,23 @@ static void cg_select(struct hardreg* cond,
 	zprintf("\n");
 }
 
-static void cg_call_returning_void(struct hardreg* func)
-{
-	zprintf("%s(", show_hardreg(func));
-	function_arg_list = 0;
-	call_return_ptr1 = NULL;
-}
-
-static void cg_call_returning_arith(struct hardreg* func, struct hardreg* dest)
-{
-	zprintf("%s = %s(", show_hardreg(dest), show_hardreg(func));
-	function_arg_list = 0;
-	call_return_ptr1 = NULL;
-}
-
-static void cg_call_returning_ptr(struct hardreg* func,
+static void cg_call(struct hardreg* func,
 		struct hardreg* dest1, struct hardreg* dest2)
 {
-	zprintf("%s = %s(", show_hardreg(dest1), show_hardreg(func));
-	call_return_ptr1 = dest1;
-	call_return_ptr2 = dest2;
+	call_return_ptr1 = NULL;
+
+	if (dest1)
+		if (dest2)
+		{
+			zprintf("%s = %s(", show_hardreg(dest1), show_hardreg(func));
+			call_return_ptr1 = dest1;
+			call_return_ptr2 = dest2;
+		}
+		else
+			zprintf("%s = %s(", show_hardreg(dest1), show_hardreg(func));
+	else
+		zprintf("%s(", show_hardreg(func));
+
 	function_arg_list = 0;
 }
 
@@ -337,27 +355,19 @@ static void cg_call_end(void)
 	}
 }
 
-/* Return void. */
+/* Return. */
 
-static void cg_return_void(void)
+static void cg_ret(struct hardreg* reg1, struct hardreg* reg2)
 {
-	zprintf("return;\n");
-}
-
-/* Return an arithmetic value. */
-
-static void cg_return_arith(struct hardreg* src)
-{
-	zprintf("return %s;\n", show_hardreg(src));
-}
-
-/* Return a pointer. */
-
-static void cg_return_ptr(struct hardreg* simple, struct hardreg* base)
-{
-	zprintf("return [%s, %s];\n",
-				show_hardreg(simple),
-				show_hardreg(base));
+	if (reg1)
+		if (reg2)
+			zprintf("return [%s, %s];\n",
+						show_hardreg(reg1),
+						show_hardreg(reg2));
+		else
+			zprintf("return %s;\n", show_hardreg(reg1));
+	else
+		zprintf("return;\n");
 }
 
 /* Do a structure copy from one location to another. */
@@ -395,13 +405,19 @@ const struct codegenerator cg_javascript =
 	.epilogue = cg_epilogue,
 	.comment = cg_comment,
 
-	.declare = cg_declare,
+	.declare_function = cg_declare_function,
+	.declare_function_arg = cg_declare_function_arg,
+	.declare_function_vararg = cg_declare_function_vararg,
+	.declare_function_end = cg_declare_function_end,
+
+	.declare_slot = cg_declare_slot,
 	.create_storage = cg_create_storage,
 	.import = cg_import,
 	.export = cg_export,
 
 	.function_prologue = cg_function_prologue,
 	.function_prologue_arg = cg_function_prologue_arg,
+	.function_prologue_vararg = cg_function_prologue_vararg,
 	.function_prologue_reg = cg_function_prologue_reg,
 	.function_prologue_end = cg_function_prologue_end,
 
@@ -445,15 +461,12 @@ const struct codegenerator cg_javascript =
 	.select_ptr = cg_select,
 	.select_arith = cg_select,
 
-	.call_returning_void = cg_call_returning_void,
-	.call_returning_arith = cg_call_returning_arith,
-	.call_returning_ptr = cg_call_returning_ptr,
+	.call = cg_call,
 	.call_arg = cg_call_arg,
+	.call_vararg = cg_call_arg,
 	.call_end = cg_call_end,
 
-	.return_void = cg_return_void,
-	.return_arith = cg_return_arith,
-	.return_ptr = cg_return_ptr,
+	.ret = cg_ret,
 
 	.memcpy = cg_memcpy
 };

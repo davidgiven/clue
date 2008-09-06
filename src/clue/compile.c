@@ -232,7 +232,40 @@ static void declare_symbol(struct symbol* sym)
 	cg->comment("symbol %s (%p), here=%d, static=%d\n",
 			show_symbol_mangled(sym), sym, sinfo->here, !!(sym->ctype.modifiers
 					& MOD_STATIC));
-	cg->declare(sym);
+	if (sym->ctype.base_type->type == SYM_FN)
+	{
+		struct symbol* fn = sym->ctype.base_type;
+		int returntype = get_base_type_of_symbol(fn->ctype.base_type);
+		cg->declare_function(sym,
+				find_regclass_for_returntype(returntype));
+		cg->declare_function_arg(
+				find_regclass_for_regtype(REGTYPE_INT));
+		cg->declare_function_arg(
+				find_regclass_for_regtype(REGTYPE_OPTR));
+
+		struct symbol* arg;
+		FOR_EACH_PTR(fn->arguments, arg)
+		{
+			int type = find_regclass_for_returntype(get_base_type_of_symbol(arg));
+			if (type == REGCLASS_REGPAIR)
+			{
+				cg->declare_function_arg(
+						find_regclass_for_regtype(REGTYPE_INT));
+				cg->declare_function_arg(
+						find_regclass_for_regtype(REGTYPE_OPTR));
+			}
+			else
+				cg->declare_function_arg(type);
+		}
+		END_FOR_EACH_PTR(arg);
+
+		if (fn->variadic)
+			cg->declare_function_vararg();
+
+		cg->declare_function_end();
+	}
+	else
+		cg->declare_slot(sym, bits_to_bytes(sym->bit_size));
 
 	/* ...and queue the pass 2 declaration. */
 
@@ -258,6 +291,7 @@ static void pass1_define_symbol(struct symbol* sym)
 			if (ep)
 			{
 				compile_references_for_function(ep);
+//				dump_fn(ep);
 				generate_ep(ep);
 				zsetbuffer(ZBUFFER_FUNCTION);
 				zflush(ZBUFFER_CODE);
@@ -290,7 +324,7 @@ static void pass2_define_or_declare_symbol(struct symbol* sym)
 		/* Otherwise, define storage for the symbol. */
 
 		if (type->type != SYM_FN)
-			cg->create_storage(sym);
+			cg->create_storage(sym, bits_to_bytes(sym->bit_size));
 
 		/* Export the symbol if necessary. */
 
@@ -371,7 +405,7 @@ void emit_initializer(void)
 	reset_hardregs();
 	untouch_hardregs();
 
-	cg->function_prologue(NULL);
+	cg->function_prologue(NULL, REGCLASS_VOID);
 
 	/* Allocate an object pointer register to hold the thing we're
 	 * initializing. */
@@ -409,6 +443,6 @@ void emit_initializer(void)
 	}
 	END_FOR_EACH_PTR(sym);
 
-	cg->return_void();
+	cg->ret(NULL, NULL);
 	cg->function_epilogue();
 }
