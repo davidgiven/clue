@@ -23,13 +23,12 @@ static struct pinfo_list* dying_pinfos = NULL;
 
 const static int type_to_regtype[] =
 {
-		[TYPE_INT] = REGTYPE_INT,
-		[TYPE_FLOAT] = REGTYPE_FLOAT,
-		[TYPE_PTR] = REGTYPE_INT, /* actually refers to the offset part */
-		[TYPE_FNPTR] = REGTYPE_FPTR,
-		[TYPE_FN] = REGTYPE_FPTR,
+	[TYPE_INT] = REGTYPE_INT,
+	[TYPE_FLOAT] = REGTYPE_FLOAT,
+	[TYPE_PTR] = REGTYPE_INT, /* actually refers to the offset part */
+	[TYPE_FNPTR] = REGTYPE_FPTR,
+	[TYPE_FN] = REGTYPE_FPTR,
 };
-
 
 void init_register_allocator(void)
 {
@@ -37,6 +36,10 @@ void init_register_allocator(void)
 
 	for (i=0; i<NUM_REGS; i++)
 		hardregs[i].number = i;
+
+	stackbase_reg.regclass = find_regclass_for_regtype(REGTYPE_OPTR);
+	stackoffset_reg.regclass = find_regclass_for_regtype(REGTYPE_INT);
+	frameoffset_reg.regclass = find_regclass_for_regtype(REGTYPE_INT);
 }
 
 /* Generate a string name of a hardreg. */
@@ -116,6 +119,35 @@ void untouch_hardregs(void)
 	cg->reset_registers();
 }
 
+/* Convert a return type to a register class. */
+
+int find_regclass_for_returntype(int type)
+{
+	switch (type)
+	{
+		case TYPE_VOID:      return REGCLASS_VOID;
+		case TYPE_PTR:       return REGCLASS_REGPAIR;
+		case TYPE_INT:       return find_regclass_for_regtype(REGTYPE_INT);
+		case TYPE_FLOAT:     return find_regclass_for_regtype(REGTYPE_FLOAT);
+		case TYPE_FNPTR:     return find_regclass_for_regtype(REGTYPE_FPTR);
+
+		default:
+			assert(0);
+	}
+}
+
+/* Determines what register class a given register should have. */
+
+int find_regclass_for_regtype(int regtype)
+{
+	int i = 0;
+	for (i = 0; i < NUM_REG_CLASSES; i++)
+		if (cg->register_class[i] & regtype)
+			return i;
+	assert(0);
+	return 0;
+}
+
 /* Allocate an unused hardreg. */
 
 struct hardreg* allocate_hardreg(int regtype)
@@ -138,12 +170,7 @@ struct hardreg* allocate_hardreg(int regtype)
 			reg->touched = 1;
 			if (!reg->name)
 			{
-				/* Find which register class can store this register type. */
-
-				i = 0;
-				for (i = 0; i < NUM_REG_CLASSES; i++)
-					if (cg->register_class[i] & regtype)
-						reg->regclass = i;
+				reg->regclass = find_regclass_for_regtype(regtype);
 
 				cg->init_register(reg, reg->regclass);
 
