@@ -11,6 +11,9 @@
 
 set -e
 
+TEMPFILE=`mktemp`
+trap "rm -f $TEMPFILE" 0
+
 validate_engine() {
 	case "$1" in
 		lua)
@@ -30,6 +33,11 @@ validate_engine() {
 			
 		rhino)
 			which rhino > /dev/null
+			return $?
+			;;
+			
+		c)
+			which gcc > /dev/null
 			return $?
 			;;
 			
@@ -62,6 +70,17 @@ execute_engine() {
 		perl5)
 			exec perl src/perl5/run.pl "$@"
 			;;
+			
+		c)
+			gcc --std=c99 -g -Os -I src/c "$2" src/c/crt.c src/c/libc.c -lm -o $TEMPFILE
+			while [ "$1" != "--" ]; do
+				shift
+			done
+
+			shift
+			shift
+			exec $TEMPFILE "$@"
+			;;			
 	esac
 	
 	echo "cluerun: unknown engine $1" 1>&2
@@ -112,6 +131,10 @@ if [ "$engine" = "" ]; then
 			
 		*.pl)
 			engine=perl5
+			;;
+		
+		*.c)
+			engine=c
 			;;
 			
 		*)

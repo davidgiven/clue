@@ -43,6 +43,13 @@ for i = 1, #benchdata do
 	local gcctime = socket.gettime() - t
 	print("gcc:", pn(gcctime), pn(1.0))
 
+	exec("./bin/clue -mc test/"..name..".c > /tmp/benchmark.c")
+	
+	t = socket.gettime()
+	exec("./cluerun -e c -f /tmp/benchmark.c -- "..arg.." > /dev/null")
+	local ctime = socket.gettime() - t
+	print("c:", pn(ctime), pn(ctime / gcctime))
+	
 	exec("./cluebat test/"..name..".c /tmp/benchmark")
 	
 	t = socket.gettime()
