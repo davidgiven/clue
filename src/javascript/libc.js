@@ -410,3 +410,12 @@ function _calloc(sp, stack, size1, size2)
 		d[i] = 0;
 	return [0, d];
 }
+
+function _free(sp, stack, po, pd)
+{
+}
+
+function _realloc(sp, stack, po, pd, size)
+{
+	return [po, pd];
+}
