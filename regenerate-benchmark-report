@@ -15,8 +15,14 @@ set -e
 cat << EOF
 These are the benchmark results that are produced by my computer.
 
-The Computer Language Benchmark Game benchmarks (these are known to
-be really poor benchmarks, I'm mostly using them for unit tests):
+The Computer Language Benchmark Game benchmarks. These should be considered
+unit tests only --- the numbers are not indicative of anything in particular.
+The time column indicates the absolute time in seconds; the comparison
+factor indicates the time taken as a multiple of the time gcc took. So
+1 means the same time, 2 means twice as long, etc. All times include
+loading and startup, which can be considerable for some targets (such as
+c, which involves compiling the target program with gcc).
+
 
 ---snip---
 EOF
@@ -26,16 +32,10 @@ EOF
 cat << EOF
 ---snip---
 
-The time column indicates the absolute time in seconds; the comparison
-factor indicates the time taken as a multiple of the time gcc took. So
-1 means the same time, 2 means twice as long, etc. All times include
-loading and startup.
-
 
 The Whetstone benchmark:
 
-I ran this three times, again using gcc, clue/lua and clue/luajit. The
-results follow:
+This is run against each target, and the results included below.
 
 gcc:
 
@@ -44,6 +44,17 @@ EOF
 
 gcc -Os test/whetstone.c -o /tmp/benchmark -lm
 /tmp/benchmark
+
+cat << EOF
+---snip---
+
+C via Clue:
+
+---snip---
+EOF
+
+bin/clue -mc test/whetstone.c > /tmp/benchmark.c
+./cluerun -e c -f /tmp/benchmark.c
 
 cat << EOF
 ---snip---
