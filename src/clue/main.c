@@ -69,6 +69,7 @@ generator_table[] = {
 	{ "-mlua",     &cg_lua },
 	{ "-mjs",      &cg_javascript },
 	{ "-mperl5",   &cg_perl5 },
+	{ "-mc",       &cg_c },
 };
 
 static void init_code_generator(int* argc, const char* argv[])
@@ -107,9 +108,9 @@ static void init_code_generator(int* argc, const char* argv[])
 
 int main(int argc, const char* argv[])
 {
+	init_code_generator(&argc, argv);
 	init_sizes();
 	init_register_allocator();
-	init_code_generator(&argc, argv);
 
 	/* Poke some special lines into the parse buffer to set up the
 	 * include paths.

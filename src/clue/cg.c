@@ -565,12 +565,12 @@ static void generate_ret(struct instruction *insn, struct bb_state *state)
 		find_hardregref(&src, insn->src);
 
 		if (src.type == TYPE_PTR)
-			cg->return_ptr(src.simple, src.base);
+			cg->ret(src.simple, src.base);
 		else
-			cg->return_arith(src.simple);
+			cg->ret(src.simple, NULL);
 	}
 	else
-		cg->return_void();
+		cg->ret(NULL, NULL);
 }
 
 /* Call a function. */
@@ -588,15 +588,21 @@ static void generate_call(struct instruction *insn, struct bb_state *state)
 	{
 		create_hardregref(&target, insn->target);
 		if (target.type == TYPE_PTR)
-			cg->call_returning_ptr(function.simple, target.simple, target.base);
+			cg->call(function.simple,
+					target.simple, target.base);
 		else
-			cg->call_returning_arith(function.simple, target.simple);
+			cg->call(function.simple,
+					target.simple, NULL);
 	}
 	else
-		cg->call_returning_void(function.simple);
+		cg->call(function.simple,
+				NULL, NULL);
 
 	cg->call_arg(&stackoffset_reg);
 	cg->call_arg(&stackbase_reg);
+
+	struct symbol* declared = insn->func->def->symbol->sym->ctype.base_type;
+	int numargs = ptr_list_size((struct ptr_list*) declared->arguments);
 
 	pseudo_t arg;
 	FOR_EACH_PTR(insn->arguments, arg)
@@ -604,9 +610,19 @@ static void generate_call(struct instruction *insn, struct bb_state *state)
 		struct hardregref hrf;
 		find_hardregref(&hrf, arg);
 
-		cg->call_arg(hrf.simple);
-		if (hrf.type == TYPE_PTR)
-			cg->call_arg(hrf.base);
+		if (numargs > 0)
+		{
+			cg->call_arg(hrf.simple);
+			if (hrf.type == TYPE_PTR)
+				cg->call_arg(hrf.base);
+			numargs--;
+		}
+		else
+		{
+			cg->call_vararg(hrf.simple);
+			if (hrf.type == TYPE_PTR)
+				cg->call_vararg(hrf.base);
+		}
 	}
 	END_FOR_EACH_PTR(arg);
 
@@ -1019,13 +1035,18 @@ static void generate_function_body(struct entrypoint* ep)
 	END_FOR_EACH_PTR(arg);
 
 	zsetbuffer(ZBUFFER_FUNCTION);
-	cg->function_prologue(ep->name);
+	struct symbol* fn = ep->name->ctype.base_type;
+	int returntype = get_base_type_of_symbol(fn->ctype.base_type);
+	cg->function_prologue(ep->name,
+			find_regclass_for_returntype(returntype));
 
 	int i;
 	cg->function_prologue_arg(&frameoffset_reg);
 	cg->function_prologue_arg(&stackbase_reg);
 	for (i = 0; i<count; i++)
 		cg->function_prologue_arg(&hardregs[i]);
+	if (fn->variadic)
+		cg->function_prologue_vararg();
 
 	/* Declare all used registers. Registers that were used for argument
 	 * passing are automatically local. */

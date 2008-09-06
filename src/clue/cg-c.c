@@ -1,5 +1,5 @@
-/* cg-lua.c
- * Backend for Lua
+/* cg-c.c
+ * Backend for C
  *
  * © 2008 David Given.
  * Clue is licensed under the Revised BSD open source license. To get the
@@ -12,9 +12,75 @@
 
 #include "globals.h"
 
+enum
+{
+	MAX_CALL_ARGS = 64,
+
+	CALLTYPE_VOID,
+	CALLTYPE_ARITH,
+	CALLTYPE_PTR,
+};
+
 static int function_arg_list = 0;
-static int function_is_initializer = 0;
+static struct hardreg* call_return_reg1;
+static struct hardreg* call_return_reg2;
+static struct hardreg* call_function_reg;
+static int call_arg_count;
+static int call_real_arg_count;
+static struct hardreg* call_arg[MAX_CALL_ARGS];
 static int register_count;
+
+enum
+{
+	REGCLASS_INT = 0,
+	REGCLASS_FLOAT,
+	REGCLASS_BOOL,
+	REGCLASS_OPTR,
+	REGCLASS_FPTR
+};
+
+static const struct
+{
+	const char* prefix;
+	const char* suffix;
+	const char* type;
+} regclassdata[] =
+{
+	[REGCLASS_INT] =
+	{
+		.prefix = "INT",
+		.suffix = "i",
+		.type = "clue_int_t"
+	},
+
+	[REGCLASS_FLOAT] =
+	{
+		.prefix = "FLOAT",
+		.suffix = "f",
+		.type = "clue_real_t"
+	},
+
+	[REGCLASS_BOOL] =
+	{
+		.prefix = "BOOL",
+		.suffix = "b",
+		.type = "clue_bool_t"
+	},
+
+	[REGCLASS_OPTR] =
+	{
+		.prefix = "OPTR",
+		.suffix = "o",
+		.type = "clue_optr_t"
+	},
+
+	[REGCLASS_FPTR] =
+	{
+		.prefix = "FPTR",
+		.suffix = "p",
+		.type = "clue_fptr_t"
+	}
+};
 
 /* Reset the register tracking. */
 
@@ -28,7 +94,8 @@ static void cg_reset_registers(void)
 static void cg_init_register(struct hardreg* reg, int regclass)
 {
 	assert(!reg->name);
-	reg->name = aprintf("$H%d", register_count);
+	reg->name = aprintf("%s%d", regclassdata[regclass].prefix,
+			register_count);
 	register_count++;
 }
 
@@ -44,13 +111,13 @@ static const char* cg_get_register_name(struct hardreg* reg)
 
 static void cg_prologue(void)
 {
+	zprintf("#include <clue-crt.h>\n");
 }
 
 /* Emit the file epilogue. */
 
 static void cg_epilogue(void)
 {
-	zprintf("return 1;\n");
 }
 
 /* Emit a comment (contains no actual code). */
@@ -61,37 +128,61 @@ static void cg_comment(const char* format, ...)
 	{
 		va_list ap;
 		va_start(ap, format);
-		zprintf("# ");
+		zprintf("// ");
 		zvprintf(format, ap);
 		va_end(ap);
 	}
 }
 
-static void cg_declare_slot(struct symbol* sym, unsigned size)
-{
-//zprintf("my $%s;\n", show_symbol_mangled(sym));
-}
-
 static void cg_declare_function(struct symbol* sym, int returning)
 {
-	cg_declare_slot(sym, 0);
+	switch (returning)
+	{
+		case REGCLASS_VOID:
+			zprintf("void ");
+			break;
+
+		case REGCLASS_REGPAIR:
+			zprintf("clue_ptr_pair_t ");
+			break;
+
+		default:
+			zprintf("%s ", regclassdata[returning].type);
+			break;
+	}
+
+	zprintf("%s(", show_symbol_mangled(sym));
+	function_arg_list = 0;
 }
 
 static void cg_declare_function_arg(int regclass)
 {
+	if (function_arg_list > 0)
+		zprintf(", ");
+	zprintf("%s", regclassdata[regclass].type);
+	function_arg_list++;
 }
 
-static void cg_declare_function_vararg(void)
+static void cg_declare_function_vararg()
 {
+	if (function_arg_list > 0)
+		zprintf(", ");
+	zprintf("...");
+	function_arg_list++;
 }
 
 static void cg_declare_function_end(void)
 {
+	zprintf(");\n");
+}
+
+static void cg_declare_slot(struct symbol* sym, unsigned size)
+{
+	zprintf("clue_slot_t %s[%d];\n", show_symbol_mangled(sym), size);
 }
 
 static void cg_create_storage(struct symbol* sym, unsigned size)
 {
-	zprintf("$%s = [];\n", show_symbol_mangled(sym));
 }
 
 static void cg_import(struct symbol* sym)
@@ -104,15 +195,29 @@ static void cg_export(struct symbol* sym)
 
 static void cg_function_prologue(struct symbol* sym, int returning)
 {
+	switch (returning)
+	{
+		case REGCLASS_VOID:
+			zprintf("void ");
+			break;
+
+		case REGCLASS_REGPAIR:
+			zprintf("clue_ptr_pair_t ");
+			break;
+
+		default:
+			zprintf("%s ", regclassdata[returning].type);
+			break;
+
+	}
+
 	if (!sym)
 	{
-		zprintf("clue_add_initializer(sub {\n");
-		function_is_initializer = 1;
+		zprintf("clue_initializer(");
 	}
 	else
 	{
-		zprintf("$%s = sub {\n", show_symbol_mangled(sym));
-		function_is_initializer = 0;
+		zprintf("%s(", show_symbol_mangled(sym));
 	}
 
 	function_arg_list = 0;
@@ -122,26 +227,26 @@ static void cg_function_prologue_arg(struct hardreg* reg)
 {
 	if (function_arg_list > 0)
 		zprintf(", ");
-	else
-		zprintf("my (");
-
-	zprintf("%s", show_hardreg(reg));
+	zprintf("%s %s", regclassdata[reg->regclass].type, show_hardreg(reg));
 	function_arg_list++;
 }
 
 static void cg_function_prologue_vararg(void)
 {
+	if (function_arg_list > 0)
+		zprintf(", ");
+	zprintf("...");
+	function_arg_list++;
 }
 
 static void cg_function_prologue_reg(struct hardreg* reg)
 {
-	if (function_arg_list > 0)
+	if (function_arg_list != -1)
 	{
-		zprintf(") = @_;\n");
+		zprintf(") {\n");
 		function_arg_list = -1;
 	}
-
-	zprintf("my %s;\n", show_hardreg(reg));
+	zprintf("%s %s;\n", regclassdata[reg->regclass].type, show_hardreg(reg));
 }
 
 static void cg_function_prologue_end(void)
@@ -150,10 +255,7 @@ static void cg_function_prologue_end(void)
 
 static void cg_function_epilogue(void)
 {
-	if (function_is_initializer)
-		zprintf("});\n\n");
-	else
-		zprintf("};\n\n");
+	zprintf("}\n\n");
 }
 
 /* Starts a basic block. */
@@ -161,14 +263,14 @@ static void cg_function_epilogue(void)
 static void cg_bb_start(struct binfo* binfo)
 {
 	if (binfo->id != 0)
-		zprintf("L_%d:\n", binfo->id);
+		zprintf("LABEL%d:\n", binfo->id);
 }
 
 /* Ends a basic block in an unconditional jump. */
 
 static void cg_bb_end_jump(struct binfo* target)
 {
-	zprintf("goto L_%d;\n", target->id);
+	zprintf("goto LABEL%d;\n", target->id);
 }
 
 /* Ends a basic block in a conditional jump based on any value. */
@@ -176,7 +278,7 @@ static void cg_bb_end_jump(struct binfo* target)
 static void cg_bb_end_if(struct hardreg* cond,
 		struct binfo* truetarget, struct binfo* falsetarget)
 {
-	zprintf("if (%s) { goto L_%d; } else { goto L_%d; }\n",
+	zprintf("if (%s) goto LABEL%d; else goto LABEL%d;\n",
 			show_hardreg(cond), truetarget->id, falsetarget->id);
 }
 
@@ -193,11 +295,12 @@ static void cg_copy(struct hardreg* src, struct hardreg* dest)
 static void cg_load(struct hardreg* simple, struct hardreg* base,
 		int offset, struct hardreg* dest)
 {
-	zprintf("%s = %s->[%s + %d];\n",
+	zprintf("%s = %s[%s + %d].%s;\n",
 			show_hardreg(dest),
 			show_hardreg(base),
 			show_hardreg(simple),
-			offset);
+			offset,
+			regclassdata[dest->regclass].suffix);
 }
 
 /* Stores a value from a memory location. */
@@ -207,17 +310,19 @@ static void cg_store(struct hardreg* simple, struct hardreg* base,
 {
 	if (simple)
 	{
-		zprintf("%s->[%s + %d] = %s;\n",
+		zprintf("%s[%s + %d].%s = %s;\n",
 				show_hardreg(base),
 				show_hardreg(simple),
 				offset,
+				regclassdata[src->regclass].suffix,
 				show_hardreg(src));
 	}
 	else
 	{
-		zprintf("%s->[%d] = %s;\n",
+		zprintf("%s[%d].%s = %s;\n",
 				show_hardreg(base),
 				offset,
+				regclassdata[src->regclass].suffix,
 				show_hardreg(src));
 	}
 }
@@ -240,15 +345,16 @@ static void cg_set_float(long double value, struct hardreg* dest)
 
 static void cg_set_symbol(struct symbol* sym, struct hardreg* dest)
 {
-	zprintf("%s = $%s;\n", show_hardreg(dest),
-			sym ? show_symbol_mangled(sym) : "undef");
+	zprintf("%s = %s%s;\n", show_hardreg(dest),
+			(dest->regclass == REGCLASS_FPTR) ? "(clue_fptr_t)" : "",
+			sym ? show_symbol_mangled(sym) : "NULL");
 }
 
 /* Convert to integer. */
 
 static void cg_toint(struct hardreg* src, struct hardreg* dest)
 {
-	zprintf("%s = int(%s);\n", show_hardreg(dest), show_hardreg(src));
+	zprintf("%s = (int) %s;\n", show_hardreg(dest), show_hardreg(src));
 }
 
 /* Arithmetic negation. */
@@ -318,42 +424,115 @@ static void cg_select(struct hardreg* cond,
 static void cg_call(struct hardreg* func,
 		struct hardreg* dest1, struct hardreg* dest2)
 {
-	if (dest1)
-		if (dest2)
-			zprintf("(%s, %s) = %s->(", show_hardreg(dest1), show_hardreg(dest2),
-					show_hardreg(func));
-		else
-			zprintf("%s = %s->(", show_hardreg(dest1), show_hardreg(func));
-	else
-		zprintf("%s->(", show_hardreg(func));
-
-	function_arg_list = 0;
+	call_function_reg = func;
+	call_arg_count = 0;
+	call_real_arg_count = -1;
+	call_return_reg1 = dest1;
+	call_return_reg2 = dest2;
 }
 
 static void cg_call_arg(struct hardreg* arg)
 {
-	if (function_arg_list > 0)
-		zprintf(", ");
-	zprintf("%s", show_hardreg(arg));
-	function_arg_list++;
+	call_arg[call_arg_count] = arg;
+	call_arg_count++;
+}
+
+static void cg_call_vararg(struct hardreg* arg)
+{
+	if (call_real_arg_count == -1)
+		call_real_arg_count = call_arg_count;
+
+	call_arg[call_arg_count] = arg;
+	call_arg_count++;
 }
 
 static void cg_call_end(void)
 {
-	zprintf(");\n");
+	if (call_real_arg_count == -1)
+		call_real_arg_count = call_arg_count;
+
+	if (call_return_reg1 && call_return_reg2)
+		zprintf("{ clue_ptr_pair_t _r = ");
+	else if (call_return_reg1)
+		zprintf("%s = ", show_hardreg(call_return_reg1));
+
+	/* Emit a cast turning the clue_fptr_t into a function of the right type.
+	 * */
+
+	zprintf("((");
+	if (call_return_reg1 && call_return_reg2)
+		zprintf("clue_ptr_pair_t");
+	else if (call_return_reg1)
+		zprintf("%s", regclassdata[call_return_reg1->regclass].type);
+	else
+		zprintf("void");
+	zprintf(" (*)(");
+
+	if (call_arg_count == 0)
+		zprintf("void");
+	else
+	{
+		int i = 0;
+		for (i = 0; i < call_real_arg_count; i++)
+		{
+			if (i > 0)
+				zprintf(", ");
+			zprintf("%s", regclassdata[call_arg[i]->regclass].type);
+		}
+
+		if (call_real_arg_count < call_arg_count)
+		{
+			if (i > 0)
+				zprintf(", ");
+			zprintf("...");
+		}
+	}
+
+	zprintf("))");
+
+	/* ...the function pointer... */
+
+	zprintf("%s)", show_hardreg(call_function_reg));
+
+	/* ...and the arguments. */
+
+	zprintf("(");
+	{
+		int i;
+		for (i = 0; i < call_arg_count; i++)
+		{
+			if (i > 0)
+				zprintf(", ");
+			zprintf("%s", show_hardreg(call_arg[i]));
+		}
+	}
+	zprintf(")");
+
+	/* Now the call epilogue. */
+
+	if (call_return_reg1 && call_return_reg2)
+	{
+		zprintf("; ");
+		zprintf("%s = _r.i;\n", show_hardreg(call_return_reg1));
+		zprintf("%s = _r.o;\n", show_hardreg(call_return_reg2));
+		zprintf("}");
+	}
+
+	zprintf(";\n");
 }
 
-/* Return. */
+/* Return a pointer. */
 
 static void cg_ret(struct hardreg* reg1, struct hardreg* reg2)
 {
 	if (reg1)
 		if (reg2)
-			zprintf("return %s, %s;\n",
+			zprintf("{ clue_ptr_pair_t _r; _r.i = %s; _r.o = %s; return _r; }\n",
 						show_hardreg(reg1),
 						show_hardreg(reg2));
 		else
-			zprintf("return %s;\n", show_hardreg(reg1));
+			zprintf("return %s;\n",
+					show_hardreg(reg1));
 	else
 		zprintf("return;\n");
 }
@@ -374,16 +553,20 @@ static void cg_memcpy(struct hardregref* src, struct hardregref* dest, int size)
 }
 
 
-const struct codegenerator cg_perl5 =
+const struct codegenerator cg_c =
 {
 	.pointer_zero_offset = 0,
-	.spname = "$sp",
-	.fpname = "$fp",
-	.stackname = "$stack",
+	.spname = "sp",
+	.fpname = "fp",
+	.stackname = "stack",
 
 	.register_class =
 	{
-		[0] = REGTYPE_ALL,
+		[REGCLASS_INT] = REGTYPE_INT,
+		[REGCLASS_FLOAT] = REGTYPE_FLOAT,
+		[REGCLASS_BOOL] = REGTYPE_BOOL,
+		[REGCLASS_OPTR] = REGTYPE_OPTR,
+		[REGCLASS_FPTR] = REGTYPE_FPTR
 	},
 	.reset_registers = cg_reset_registers,
 	.init_register = cg_init_register,
@@ -451,7 +634,7 @@ const struct codegenerator cg_perl5 =
 
 	.call = cg_call,
 	.call_arg = cg_call_arg,
-	.call_vararg = cg_call_arg,
+	.call_vararg = cg_call_vararg,
 	.call_end = cg_call_end,
 
 	.ret = cg_ret,
