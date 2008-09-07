@@ -4,8 +4,8 @@
  * the full license text, see:
  * http://shootout.alioth.debian.org/gp4/miscfile.php?file=license&title=revised%20BSD%20license
  *
- * $Id: build 136 2008-03-22 19:00:08Z dtrg $
- * $HeadURL: https://primemover.svn.sf.net/svnroot/primemover/pm/lib/c.pm $
+ * $Id$
+ * $HeadURL$
  * $LastChangedDate: 2007-04-30 22:41:42 +0000 (Mon, 30 Apr 2007) $
  */
 

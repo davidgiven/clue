@@ -5,8 +5,8 @@
 # Clue is licensed under the Revised BSD open source license. To get the
 # full license text, see the README file.
 #
-# $Id: cluebat 2 2008-07-08 12:46:21Z dtrg $
-# $HeadURL: https://cluecc.svn.sourceforge.net/svnroot/cluecc/clue/cluebat $
+# $Id$
+# $HeadURL$
 # $LastChangedDate: 2008-07-08 13:46:21 +0100 (Tue, 08 Jul 2008) $
 
 set -e
