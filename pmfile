@@ -44,6 +44,7 @@ clue_program = cprogram {
 	cfile "src/clue/cg-javascript.c",
 	cfile "src/clue/cg-perl5.c",
 	cfile "src/clue/cg-c.c",
+	cfile "src/clue/cg-lisp.c",
 	file "%SPARSELIB%",
 	
 	install = pm.install("bin/clue")
