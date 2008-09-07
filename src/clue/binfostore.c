@@ -5,8 +5,8 @@
  * Clue is licensed under the Revised BSD open source license. To get the
  * full license text, see the README file.
  *
- * $Id: build 136 2008-03-22 19:00:08Z dtrg $
- * $HeadURL: https://primemover.svn.sf.net/svnroot/primemover/pm/lib/c.pm $
+ * $Id$
+ * $HeadURL$
  * $LastChangedDate: 2007-04-30 22:41:42 +0000 (Mon, 30 Apr 2007) $
  */
 
@@ -14,6 +14,9 @@
 #include "avl.h"
 
 static avltree_t binfostore = NULL;
+static struct binfo** binfolist = NULL;
+static int binfocount = 0;
+static int iterator;
 
 static int compare_cb(const void* lhs, const void* rhs)
 {
@@ -43,3 +46,54 @@ struct binfo* lookup_binfo_of_basic_block(struct basic_block* bb)
 
 	return data;
 }
+
+void reset_binfo(void)
+{
+	binfostore = NULL;
+	binfolist = NULL;
+}
+
+static void enumerate_cb(void* node)
+{
+	binfocount++;
+}
+
+static void iterate_cb(void* node)
+{
+	binfolist[iterator] = node;
+	iterator++;
+}
+
+static int sortindex_cb(const void* p1, const void* p2)
+{
+	struct binfo* const * o1 = p1;
+	struct binfo* const * o2 = p2;
+	int id1 = (*o1)->id;
+	int id2 = (*o2)->id;
+
+	if (id1 < id2)
+		return -1;
+	else if (id1 > id2)
+		return 1;
+	return 0;
+}
+
+void get_binfo_list(struct binfo*** list, int* count)
+{
+	if (!binfolist)
+	{
+		binfocount = 0;
+		avl_traverse(binfostore, enumerate_cb);
+
+		binfolist = calloc(sizeof(struct binfo*), binfocount);
+		iterator = 0;
+		avl_traverse(binfostore, iterate_cb);
+
+		qsort(binfolist, binfocount, sizeof(struct binfo*),
+				sortindex_cb);
+	}
+
+	*list = binfolist;
+	*count = binfocount;
+}
+

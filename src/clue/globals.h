@@ -5,8 +5,8 @@
  * Clue is licensed under the Revised BSD open source license. To get the
  * full license text, see the README file.
  *
- * $Id: build 136 2008-03-22 19:00:08Z dtrg $
- * $HeadURL: https://primemover.svn.sf.net/svnroot/primemover/pm/lib/c.pm $
+ * $Id$
+ * $HeadURL$
  * $LastChangedDate: 2007-04-30 22:41:42 +0000 (Mon, 30 Apr 2007) $
  */
 
@@ -326,7 +326,9 @@ extern const char* show_symbol_mangled(struct symbol* sym);
 extern void rewrite_bb_recursively(struct basic_block* bb,
     unsigned long generation);
 
-struct binfo* lookup_binfo_of_basic_block(struct basic_block* binfo);
+extern struct binfo* lookup_binfo_of_basic_block(struct basic_block* binfo);
+extern void reset_binfo(void);
+extern void get_binfo_list(struct binfo*** list, int* count);
 
 extern void dump_fn(struct entrypoint *ep);
 

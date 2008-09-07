@@ -5,8 +5,8 @@
  * Clue is licensed under the Revised BSD open source license. To get the
  * full license text, see the README file.
  *
- * $Id: build 136 2008-03-22 19:00:08Z dtrg $
- * $HeadURL: https://primemover.svn.sf.net/svnroot/primemover/pm/lib/c.pm $
+ * $Id$
+ * $HeadURL$
  * $LastChangedDate: 2007-04-30 22:41:42 +0000 (Mon, 30 Apr 2007) $
  */
 
@@ -32,9 +32,6 @@ struct operand
 		struct symbol* sym; /* OP_ADDR */
 	};
 };
-
-static void generate_bb_list(struct basic_block_list *list,
-		unsigned long generation);
 
 static int stacksize;
 
@@ -937,18 +934,12 @@ static void mark_used_registers(struct basic_block *bb, struct bb_state *state)
 	END_FOR_EACH_PTR(parent);
 }
 
-/* Generate code for a bb and all bbs that it depends on and which depend on
- * it. */
+/* Generate code for a particular binfo. */
 
-static void generate_bb_recursively(struct basic_block *bb, unsigned long generation)
+static void generate_binfo(struct binfo* binfo)
 {
 	struct bb_state state;
-
-	bb->generation = generation;
-
-	/* Ensure that the parent bbs of this one get generated first. */
-
-	generate_bb_list(bb->parents, generation);
+	struct basic_block* bb = binfo->bb;
 
 	/* Collect information from the front end about what storages are
 	 * used by this bb. */
@@ -965,25 +956,6 @@ static void generate_bb_recursively(struct basic_block *bb, unsigned long genera
 
 	free_ptr_list(&state.inputs);
 	free_ptr_list(&state.outputs);
-
-	/* Now generate all the children bbs. */
-
-	generate_bb_list(bb->children, generation);
-}
-
-/* Generate a sequence of bbs. */
-
-static void generate_bb_list(struct basic_block_list *list,
-		unsigned long generation)
-{
-	struct basic_block *bb;
-	FOR_EACH_PTR(list, bb)
-	{
-		if (bb->generation == generation)
-			continue;
-		generate_bb_recursively(bb, generation);
-	}
-	END_FOR_EACH_PTR(bb);
 }
 
 /* Set up the hardregs so that they're correctly pointing at where the
@@ -1084,6 +1056,10 @@ void generate_ep(struct entrypoint *ep)
 {
 	zsetbuffer(ZBUFFER_FUNCTIONCODE);
 
+	/* Reset various bits of state. */
+
+	reset_binfo();
+
 	/* Mark all hardregs as untouched, so we can keep track of which ones
 	 * were used. */
 
@@ -1125,8 +1101,12 @@ void generate_ep(struct entrypoint *ep)
 
 	/* Generate the code itself into the zbuffer. */
 
-	generation = ++bb_generation;
-	generate_bb_recursively(ep->entry->bb, generation);
+	struct binfo** binfolist;
+	int binfocount;
+	get_binfo_list(&binfolist, &binfocount);
+	int i;
+	for (i = 0; i < binfocount; i++)
+		generate_binfo(binfolist[i]);
 
 	/* Now generate the function body with the zbuffer contents embedded
 	 * within. */
