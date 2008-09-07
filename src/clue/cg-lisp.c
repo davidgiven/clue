@@ -149,7 +149,7 @@ static void cg_function_prologue_reg(struct hardreg* reg)
 		function_arg_list = -1;
 		parencount++;
 	}
-	
+
 	zprintf("%s ", show_hardreg(reg));
 }
 
@@ -469,6 +469,7 @@ const struct codegenerator cg_lisp =
 
 	.call = cg_call,
 	.call_arg = cg_call_arg,
+	.call_vararg = cg_call_arg,
 	.call_end = cg_call_end,
 
 	.ret = cg_ret,
