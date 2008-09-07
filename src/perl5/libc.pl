@@ -4,8 +4,8 @@
 # Clue is licensed under the Revised BSD open source license. To get the
 # full license text, see the README file.
 #
-# $Id: cluerun 20 2008-07-16 10:21:58Z dtrg $
-# $HeadURL: https://cluecc.svn.sourceforge.net/svnroot/cluecc/clue/cluerun $
+# $Id$
+# $HeadURL$
 # $LastChangedDate: 2008-07-16 11:21:58 +0100 (Wed, 16 Jul 2008) $
 
 use Time::HiRes qw(gettimeofday);
