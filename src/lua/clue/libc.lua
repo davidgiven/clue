@@ -6,7 +6,7 @@
 -- Clue is licensed under the Revised BSD open source license. To get the
 -- full license text, see the README file.
 --
--- $Id: build 136 2008-03-22 19:00:08Z dtrg $
+-- $Id$
 
 require "clue.crt"
 require "socket"
