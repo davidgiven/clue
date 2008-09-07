@@ -6,7 +6,7 @@
 --
 -- $Id$
 -- $HeadURL$
--- $LastChangedDate$
+-- $LastChangedDate: 2008-09-06 22:48:53 +0100 (Sat, 06 Sep 2008) $
 
 include "pmlib/c.pm"
 
