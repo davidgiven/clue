@@ -44,6 +44,12 @@ validate_engine() {
 		perl5)
 			which perl > /dev/null
 			return $?
+			;;
+
+		sbcl)
+			which sbcl > /dev/null
+			return $?
+			;;
 	esac
 	
 	return 1
@@ -81,6 +87,10 @@ execute_engine() {
 			shift
 			exec $TEMPFILE "$@"
 			;;			
+
+		sbcl)
+			exec sbcl --noinform --load src/lisp/run.lisp --no-userinit --end-toplevel-options "$@"
+			;;
 	esac
 	
 	echo "cluerun: unknown engine $1" 1>&2
@@ -135,6 +145,10 @@ if [ "$engine" = "" ]; then
 		
 		*.c)
 			engine=c
+			;;
+			
+		*.lisp)
+			engine=sbcl
 			;;
 			
 		*)

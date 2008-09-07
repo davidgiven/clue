@@ -70,6 +70,7 @@ generator_table[] = {
 	{ "-mjs",      &cg_javascript },
 	{ "-mperl5",   &cg_perl5 },
 	{ "-mc",       &cg_c },
+	{ "-mlisp",    &cg_lisp },
 };
 
 static void init_code_generator(int* argc, const char* argv[])
