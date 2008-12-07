@@ -37,6 +37,12 @@
 #define NUM_REGS 200
 #define MAX_ARGS 32
 
+/* This is a simple checksum of the current input filename, used to produce
+ * 'unique' static symbols. This is rather unpleasant.
+ */
+
+extern unsigned int unique;
+
 /* Available output buffers. */
 
 enum
@@ -330,6 +336,6 @@ extern struct binfo* lookup_binfo_of_basic_block(struct basic_block* binfo);
 extern void reset_binfo(void);
 extern void get_binfo_list(struct binfo*** list, int* count);
 
-extern void dump_fn(struct entrypoint *ep);
+extern void dump_bb(struct basic_block* bb);
 
 #endif
