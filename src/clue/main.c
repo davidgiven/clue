@@ -14,6 +14,7 @@
 #include <stdarg.h>
 
 const struct codegenerator* cg;
+unsigned int unique = 0;
 
 static void init_sizes(void)
 {
@@ -129,6 +130,13 @@ int main(int argc, const char* argv[])
 	char *file;
 	FOR_EACH_PTR_NOTAG(filelist, file)
 	{
+		char* p = file;
+		do
+		{
+			unique += *p;
+		}
+		while (*p++);
+
 		symbols = sparse(file);
 		compile_symbol_list(symbols);
 	}

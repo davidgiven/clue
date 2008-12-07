@@ -63,7 +63,8 @@ struct sinfo* lookup_sinfo_of_symbol(struct symbol* sym)
 			static int count = 0;
 
 			data->here = 1;
-			data->name = aprintf("static_%d_%s", count++, ident);
+			data->name = aprintf("static_%d_%d_%s", unique, count, ident);
+			count++;
 		}
 		else
 			data->name = aprintf("_%s", ident);
