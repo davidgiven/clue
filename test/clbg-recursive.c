@@ -19,6 +19,7 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include "clbg.h"
 
 static inline int ack(register int x, register int y) __attribute__((const));
 static inline int fib(int n) __attribute__((const));
@@ -62,7 +63,7 @@ static inline double takFP(double x, double y, double z) {
 }
 
 int
-main(int argc, char ** argv) {
+clbgmain(int argc, const char ** argv) {
   int n = 3;
 
   if(argc > 1) {

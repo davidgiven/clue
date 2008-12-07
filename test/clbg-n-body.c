@@ -20,6 +20,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "clbg.h"
 
 #define pi 3.141592653589793
 #define solar_mass (4 * pi * pi)
@@ -138,7 +139,7 @@ static struct planet bodies[NBODIES] = {
   }
 };
 
-int main(int argc, char ** argv)
+int clbgmain(int argc, const char ** argv)
 {
   int n = atoi(argv[1]);
   int i;

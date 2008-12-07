@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "clbg.h"
 
 typedef unsigned char boolean;
 
@@ -38,7 +39,7 @@ static void nsieve(int m) {
     printf("Primes up to %8u %8u\n", m, count);
 }
 
-int main(int argc, char * argv[]) {
+int clbgmain(int argc, const char * argv[]) {
     int m = atoi(argv[1]);
     int i;
 

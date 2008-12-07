@@ -21,9 +21,10 @@
    compile flags:  -O3 -ffast-math -march=pentium4 -funroll-loops
 */
 
-#include<stdio.h>
+#include <stdio.h>
+#include "clbg.h"
 
-int main (int argc, char **argv)
+int clbgmain (int argc, const char **argv)
 {
     int w, h, bit_num = 0;
     char byte_acc = 0;
@@ -33,11 +34,10 @@ int main (int argc, char **argv)
 
     w = h = atoi(argv[1]);
 
-    printf("P4\n%d %d\n",w,h);
+    printf("Image data width=%d height=%d",w,h);
 
     for(y=0;y<h;++y)
     {
-    	printf("y=%d\n", y);
         for(x=0;x<w;++x)
         {
             Zr = Zi = Tr = Ti = 0.0;
@@ -58,14 +58,14 @@ int main (int argc, char **argv)
 
             if(bit_num == 8)
             {
-                putc(byte_acc,stdout);
+            	printf("%d\n", byte_acc);
                 byte_acc = 0;
                 bit_num = 0;
             }
             else if(x == w-1)
             {
                 byte_acc <<= (8-w%8);
-                putc(byte_acc,stdout);
+            	printf("%d\n", byte_acc);
                 byte_acc = 0;
                 bit_num = 0;
             }
