@@ -74,7 +74,8 @@ do
 	end
 	
 	clue.crt.run_initializers()
-	local result = _main(1, {}, #argv - argc, 1, cargs)
+
+	local result = _main(1, {}, #argv - argc + 1, 1, cargs)
 	os.exit(result)
 end
 
