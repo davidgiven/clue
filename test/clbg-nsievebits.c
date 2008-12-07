@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "clbg.h"
 
 typedef unsigned int bits;
 #define BBITS		(sizeof(bits) * 8)
@@ -26,7 +27,7 @@ typedef unsigned int bits;
 #define BTEST(p, x)	((p)[(x) / BBITS] & BMASK(x))
 #define BFLIP(p, x)	(p)[(x) / BBITS] ^= BMASK(x)
 
-int main(int argc, char **argv)
+int clbgmain(int argc, const char **argv)
 {
   unsigned int m, sz = 10000 << (argc > 1 ? atoi(argv[1]) : 1);
   bits *primes = (bits *)malloc(BSIZE(sz));

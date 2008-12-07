@@ -24,8 +24,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include "clbg.h"
 
-int main(int argc, char **argv)
+int clbgmain(int argc, const char **argv)
 {
   int k, n = atoi(argv[1]);
   double sum, a;

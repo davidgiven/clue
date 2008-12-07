@@ -21,6 +21,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include "clbg.h"
 
 #define Int	int
 #define Aint	int
@@ -107,7 +108,7 @@ fannkuch( int n )
 }
 
     int
-main( int argc, char* argv[] )
+clbgmain( int argc, const char* argv[] )
 {
     int		n = (argc>1) ? atoi(argv[1]) : 0;
 

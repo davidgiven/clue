@@ -22,7 +22,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-
+#include "clbg.h"
 
 typedef struct tn {
     struct tn*    left;
@@ -80,7 +80,7 @@ static void DeleteTree(treeNode* tree)
 } /* DeleteTree() */
 
 
-int main(int argc, char* argv[])
+int clbgmain(int argc, const char* argv[])
 {
     unsigned   N, depth, minDepth, maxDepth, stretchDepth;
     treeNode   *stretchTree, *longLivedTree, *tempTree;
