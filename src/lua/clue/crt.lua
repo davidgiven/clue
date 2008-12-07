@@ -37,9 +37,16 @@ function add_initializer(i)
 end
 
 function run_initializers()
+	-- Foul, foul hack. Run all initializers twice to resolve mutually
+	-- dependent function references.
+	 
 	for _, i in ipairs(initializer_list) do
 		i()
 	end
+	for _, i in ipairs(initializer_list) do
+		i()
+	end
+
 	initializer_list = {}
 end
 
