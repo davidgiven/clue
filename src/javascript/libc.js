@@ -107,6 +107,11 @@ function sprintf()
 	}
 
 	var a = arguments, i = 0, format = a[i++];
+	
+	/* Foul hack to remove simple uses of %l, which aren't supported. */
+	format.replace("[^%]%l", "%");
+	format.replace("^%l", "%");
+	
 	return format
 	        .replace(
 	                sprintf.regex,
