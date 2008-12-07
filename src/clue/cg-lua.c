@@ -5,8 +5,8 @@
  * Clue is licensed under the Revised BSD open source license. To get the
  * full license text, see the README file.
  *
- * $Id: build 136 2008-03-22 19:00:08Z dtrg $
- * $HeadURL: https://primemover.svn.sf.net/svnroot/primemover/pm/lib/c.pm $
+ * $Id$
+ * $HeadURL$
  * $LastChangedDate: 2007-04-30 22:41:42 +0000 (Mon, 30 Apr 2007) $
  */
 
@@ -140,7 +140,7 @@ static void cg_function_prologue_arg(struct hardreg* reg)
 	function_arg_list++;
 }
 
-static void cg_function_prologue_vararg(struct hardreg* reg)
+static void cg_function_prologue_vararg(void)
 {
 	if (function_arg_list > 0)
 		zprintf(", ");
@@ -159,10 +159,16 @@ static void cg_function_prologue_reg(struct hardreg* reg)
 
 static void cg_function_prologue_end(void)
 {
+	zprintf("local state = 0;\n");
+	zprintf("while true do\n");
+	zprintf("repeat\n");
+	zprintf("if state == 0 then\n");
 }
 
 static void cg_function_epilogue(void)
 {
+	zprintf("until true\n");
+	zprintf("end\n");
 	zprintf("end\n\n");
 	if (function_is_initializer)
 		zprintf("clue.crt.add_initializer(initializer)\n");
@@ -170,16 +176,17 @@ static void cg_function_epilogue(void)
 
 /* Starts a basic block. */
 
-static void cg_bb_start(struct binfo* bb)
+static void cg_bb_start(struct binfo* binfo)
 {
-	zprintf("__LABEL = %d\n", bb->id);
+	if (binfo->id != 0)
+		zprintf("if state == %d then\n", binfo->id);
 }
 
 /* Ends a basic block in an unconditional jump. */
 
 static void cg_bb_end_jump(struct binfo* target)
 {
-	zprintf("__GOTO = %d\n", target->id);
+	zprintf("state = %d break end\n", target->id);
 }
 
 /* Ends a basic block in a conditional jump based on an arithmetic value. */
@@ -187,7 +194,7 @@ static void cg_bb_end_jump(struct binfo* target)
 static void cg_bb_end_if_arith(struct hardreg* cond,
 		struct binfo* truetarget, struct binfo* falsetarget)
 {
-	zprintf("if %s ~= 0 then __GOTO = %d else __GOTO = %d end\n",
+	zprintf("if %s ~= 0 then state = %d else state = %d end break end\n",
 			show_hardreg(cond), truetarget->id, falsetarget->id);
 }
 
@@ -196,7 +203,7 @@ static void cg_bb_end_if_arith(struct hardreg* cond,
 static void cg_bb_end_if_ptr(struct hardreg* cond,
 		struct binfo* truetarget, struct binfo* falsetarget)
 {
-	zprintf("if %s then __GOTO = %d else __GOTO = %d end\n",
+	zprintf("if %s then state = %d else state = %d end break end\n",
 			show_hardreg(cond), truetarget->id, falsetarget->id);
 }
 
@@ -290,7 +297,7 @@ SIMPLE_INFIX_2OP(add, "+")
 SIMPLE_INFIX_2OP(subtract, "-")
 SIMPLE_INFIX_2OP(multiply, "*")
 SIMPLE_INFIX_2OP(divide, "/")
-SIMPLE_INFIX_2OP(mod, "%")
+SIMPLE_INFIX_2OP(mod, "%%")
 
 #define SIMPLE_PREFIX_2OP(NAME, OP) \
 	static void cg_##NAME(struct hardreg* src1, struct hardreg* src2, \
@@ -408,6 +415,7 @@ static void cg_ret(struct hardreg* reg1, struct hardreg* reg2)
 	}
 	else
 		zprintf("do return end\n");
+	zprintf("end\n");
 }
 
 /* Do a structure copy from one location to another. */
