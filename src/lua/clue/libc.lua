@@ -27,6 +27,7 @@ local io_stdin = io.stdin
 local io_stdout = io.stdout
 local io_stderr = io.stderr
 local string_format = string.format
+local string_gsub = string.gsub
 local math_sin = math.sin
 local math_cos = math.cos
 local math_sqrt = math.sqrt
@@ -101,6 +102,13 @@ function _printf(sp, stack, formatpo, formatpd, ...)
 		outargs[#outargs+1] = thisarg
 	end	
 
+	-- Massage the format string to be Lua-compatible.
+	
+	format = string_gsub(format, "[^%%]%%l", "%%")
+	format = string_gsub(format, "^%%l", "%%")
+	
+	-- Use Lua's string.format to actually do the rendering.
+	
 	io_write(string_format(format, unpack(outargs)))
 	return 1
 end
