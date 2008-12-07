@@ -11,6 +11,7 @@
  */
 
 #include "globals.h"
+#define CLUE_EMULATE_INT_WITH_DOUBLE
 
 enum
 {
@@ -32,11 +33,13 @@ static int register_count;
 
 enum
 {
-	REGCLASS_INT = 0,
 	REGCLASS_FLOAT,
 	REGCLASS_BOOL,
 	REGCLASS_OPTR,
-	REGCLASS_FPTR
+	REGCLASS_FPTR,
+#if !defined CLUE_EMULATE_INT_WITH_DOUBLE
+	REGCLASS_INT
+#endif
 };
 
 static const struct
@@ -46,13 +49,6 @@ static const struct
 	const char* type;
 } regclassdata[] =
 {
-	[REGCLASS_INT] =
-	{
-		.prefix = "INT",
-		.suffix = "i",
-		.type = "clue_int_t"
-	},
-
 	[REGCLASS_FLOAT] =
 	{
 		.prefix = "FLOAT",
@@ -79,7 +75,16 @@ static const struct
 		.prefix = "FPTR",
 		.suffix = "p",
 		.type = "clue_fptr_t"
-	}
+	},
+
+#if !defined CLUE_EMULATE_INT_WITH_DOUBLE
+	[REGCLASS_INT] =
+	{
+		.prefix = "INT",
+		.suffix = "i",
+		.type = "clue_int_t"
+	},
+#endif
 };
 
 /* Reset the register tracking. */
@@ -195,29 +200,37 @@ static void cg_export(struct symbol* sym)
 
 static void cg_function_prologue(struct symbol* sym, int returning)
 {
-	switch (returning)
-	{
-		case REGCLASS_VOID:
-			zprintf("void ");
-			break;
-
-		case REGCLASS_REGPAIR:
-			zprintf("clue_ptr_pair_t ");
-			break;
-
-		default:
-			zprintf("%s ", regclassdata[returning].type);
-			break;
-
-	}
-
 	if (!sym)
 	{
-		zprintf("clue_initializer(");
+		zprintf("static void clue_initializer(void) CLUE_CONSTRUCTOR;\n");
+		zprintf("static void clue_initializer(");
 	}
 	else
 	{
-		zprintf("%s(", show_symbol_mangled(sym));
+		switch (returning)
+		{
+			case REGCLASS_VOID:
+				zprintf("void ");
+				break;
+
+			case REGCLASS_REGPAIR:
+				zprintf("clue_ptr_pair_t ");
+				break;
+
+			default:
+				zprintf("%s ", regclassdata[returning].type);
+				break;
+
+		}
+
+		if (!sym)
+		{
+			zprintf("clue_initializer(");
+		}
+		else
+		{
+			zprintf("%s(", show_symbol_mangled(sym));
+		}
 	}
 
 	function_arg_list = 0;
@@ -295,7 +308,7 @@ static void cg_copy(struct hardreg* src, struct hardreg* dest)
 static void cg_load(struct hardreg* simple, struct hardreg* base,
 		int offset, struct hardreg* dest)
 {
-	zprintf("%s = %s[%s + %d].%s;\n",
+	zprintf("%s = %s[(int)%s + %d].%s;\n",
 			show_hardreg(dest),
 			show_hardreg(base),
 			show_hardreg(simple),
@@ -310,7 +323,7 @@ static void cg_store(struct hardreg* simple, struct hardreg* base,
 {
 	if (simple)
 	{
-		zprintf("%s[%s + %d].%s = %s;\n",
+		zprintf("%s[(int)%s + %d].%s = %s;\n",
 				show_hardreg(base),
 				show_hardreg(simple),
 				offset,
@@ -364,41 +377,42 @@ static void cg_negate(struct hardreg* src, struct hardreg* dest)
 	zprintf("%s = -%s;\n", show_hardreg(dest), show_hardreg(src));
 }
 
-#define SIMPLE_INFIX_2OP(NAME, OP) \
+#define SIMPLE_INFIX_2OP(NAME, OP, CAST) \
 	static void cg_##NAME(struct hardreg* src1, struct hardreg* src2, \
 			struct hardreg* dest) \
 	{ \
-		zprintf("%s = %s " OP " %s;\n", show_hardreg(dest), \
+		zprintf("%s = " CAST " %s " OP " " CAST " %s;\n", show_hardreg(dest), \
 				show_hardreg(src1), show_hardreg(src2)); \
 	}
 
-SIMPLE_INFIX_2OP(add, "+")
-SIMPLE_INFIX_2OP(subtract, "-")
-SIMPLE_INFIX_2OP(multiply, "*")
-SIMPLE_INFIX_2OP(divide, "/")
-SIMPLE_INFIX_2OP(mod, "%%")
-SIMPLE_INFIX_2OP(logand, "&")
-SIMPLE_INFIX_2OP(logor, "|")
-SIMPLE_INFIX_2OP(logxor, "^")
-SIMPLE_INFIX_2OP(shl, "<<")
-SIMPLE_INFIX_2OP(shr, ">>")
+SIMPLE_INFIX_2OP(add, "+", "")
+SIMPLE_INFIX_2OP(subtract, "-", "")
+SIMPLE_INFIX_2OP(multiply, "*", "")
+SIMPLE_INFIX_2OP(divide, "/", "")
+SIMPLE_INFIX_2OP(mod, "%%", "(clue_realint_t)")
+SIMPLE_INFIX_2OP(logand, "&", "(clue_realint_t)")
+SIMPLE_INFIX_2OP(logor, "|", "(clue_realint_t)")
+SIMPLE_INFIX_2OP(logxor, "^", "(clue_realint_t)")
+SIMPLE_INFIX_2OP(shl, "<<", "(clue_realint_t)")
+SIMPLE_INFIX_2OP(shr, ">>", "(clue_realint_t)")
 
-#define SIMPLE_SET_2OP(NAME, OP) \
+#define SIMPLE_SET_2OP(NAME, OP, CAST) \
 	static void cg_##NAME(struct hardreg* src1, struct hardreg* src2, \
 			struct hardreg* dest) \
 	{ \
-		zprintf("%s = (%s " OP " %s) ? 1 : 0;\n", show_hardreg(dest), \
+		zprintf("%s = (" CAST " %s " OP " " CAST " %s) ? 1 : 0;\n", \
+				show_hardreg(dest), \
 				show_hardreg(src1), show_hardreg(src2)); \
 	}
 
-SIMPLE_SET_2OP(booland, "&&")
-SIMPLE_SET_2OP(boolor, "||")
-SIMPLE_SET_2OP(set_gt, ">")
-SIMPLE_SET_2OP(set_ge, ">=")
-SIMPLE_SET_2OP(set_lt, "<")
-SIMPLE_SET_2OP(set_le, "<=")
-SIMPLE_SET_2OP(set_eq, "==")
-SIMPLE_SET_2OP(set_ne, "!=")
+SIMPLE_SET_2OP(booland, "&&", "(clue_realint_t)")
+SIMPLE_SET_2OP(boolor, "||", "(clue_realint_t)")
+SIMPLE_SET_2OP(set_gt, ">", "")
+SIMPLE_SET_2OP(set_ge, ">=", "")
+SIMPLE_SET_2OP(set_lt, "<", "")
+SIMPLE_SET_2OP(set_le, "<=", "")
+SIMPLE_SET_2OP(set_eq, "==", "")
+SIMPLE_SET_2OP(set_ne, "!=", "")
 
 /* Select operations using any condition. */
 
@@ -562,8 +576,12 @@ const struct codegenerator cg_c =
 
 	.register_class =
 	{
+#if defined CLUE_EMULATE_INT_WITH_DOUBLE
+		[REGCLASS_FLOAT] = REGTYPE_INT | REGTYPE_FLOAT,
+#else
 		[REGCLASS_INT] = REGTYPE_INT,
 		[REGCLASS_FLOAT] = REGTYPE_FLOAT,
+#endif
 		[REGCLASS_BOOL] = REGTYPE_BOOL,
 		[REGCLASS_OPTR] = REGTYPE_OPTR,
 		[REGCLASS_FPTR] = REGTYPE_FPTR

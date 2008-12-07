@@ -39,7 +39,7 @@ clue_int_t _printf(clue_int_t sp, clue_optr_t stack,
 	va_start(ap, formatpd);
 	for (;;)
 	{
-		int c = formatpd[formatpo].i;
+		int c = formatpd[(int)formatpo].i;
 		formatpo++;
 
 		switch (c)
@@ -59,7 +59,7 @@ clue_int_t _printf(clue_int_t sp, clue_optr_t stack,
 
 				for (;;)
 				{
-					c = formatpd[formatpo].i;
+					c = formatpd[(int)formatpo].i;
 					formatpo++;
 					formatbuffer[i] = c;
 					i++;
@@ -79,7 +79,7 @@ clue_int_t _printf(clue_int_t sp, clue_optr_t stack,
 					case 'x':
 					case 'X':
 					{
-						clue_int_t i = va_arg(ap, clue_int_t);
+						int64_t i = (int64_t) va_arg(ap, clue_int_t);
 						chars += printf(formatbuffer, i);
 						break;
 					}
@@ -130,7 +130,8 @@ clue_int_t _printf(clue_int_t sp, clue_optr_t stack,
 						clue_int_t po = va_arg(ap, clue_int_t);
 						clue_optr_t pd = va_arg(ap, clue_optr_t);
 
-						chars += printf("[PTR:%08X+%08X]", pd, po);
+						chars += printf("[PTR:%08X+%08X]",
+								(unsigned int) pd, (unsigned int) po);
 						break;
 					}
 
@@ -139,7 +140,7 @@ clue_int_t _printf(clue_int_t sp, clue_optr_t stack,
 						clue_int_t po = va_arg(ap, clue_int_t);
 						clue_optr_t pd = va_arg(ap, clue_optr_t);
 
-						pd[po].i = chars;
+						pd[(int)po].i = chars;
 						break;
 					}
 				}
@@ -187,8 +188,8 @@ clue_ptr_pair_t _strcpy(clue_int_t sp, clue_optr_t stack,
 
 	for (;;)
 	{
-		clue_int_t c = srcpd[srcpo].i;
-		destpd[destpo].i = c;
+		clue_int_t c = srcpd[(int)srcpo].i;
+		destpd[(int)destpo].i = c;
 
 		srcpo++;
 		destpo++;
@@ -205,7 +206,7 @@ clue_ptr_pair_t _memset(clue_int_t sp, clue_optr_t stack,
 		clue_int_t c, clue_int_t n)
 {
 	for (int i = 0; i < (n-1); i++)
-		destpd[destpo + i].i = c;
+		destpd[(int)destpo + i].i = c;
 
 	clue_ptr_pair_t r;
 	r.i = destpo;
@@ -225,8 +226,8 @@ clue_int_t _gettimeofday(clue_int_t sp, clue_optr_t stack,
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
 
-	tvpd[tvpo+0].i = tv.tv_sec;
-	tvpd[tvpo+1].i = tv.tv_usec;
+	tvpd[(int)tvpo+0].i = tv.tv_sec;
+	tvpd[(int)tvpo+1].i = tv.tv_usec;
 	return 0;
 }
 
