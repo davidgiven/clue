@@ -48,7 +48,7 @@ const char* clue_ptrtostring(clue_int_t po, clue_optr_t pd)
 
 	for (;;)
 	{
-		int c = pd[po+len].i;
+		int c = pd[(int)po+len].i;
 		len++;
 		if (c == '\0')
 			break;
@@ -62,7 +62,7 @@ const char* clue_ptrtostring(clue_int_t po, clue_optr_t pd)
 
 	int i;
 	for (i = 0; i < len; i++)
-		s[i] = pd[po+i].i;
+		s[i] = pd[(int)po+i].i;
 
 	return s;
 }
@@ -90,8 +90,6 @@ int main(int argc, const char* argv[])
 
 	clueargv[(argc*2)+0].i = 0;
 	clueargv[(argc*2)+1].o = NULL;
-
-	clue_initializer();
 
 	_main(0, clue_stack, argc, 0, clueargv);
 }
