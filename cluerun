@@ -79,7 +79,6 @@ execute_engine() {
 			
 		c)
 			shift
-			echo "$@"
 			infiles=
 			while [ "$1" != "--" ]; do
 				infiles="$infiles $1"
