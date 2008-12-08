@@ -182,7 +182,7 @@ end
 function _gettimeofday(sp, stack, tvpo, tvpd, tzpo, tzpd)
 	local t = socket_gettime()
 	local secs = math_floor(t)
-	local usecs = math_floor((t - secs) * 1000)
+	local usecs = math_floor((t - secs) * 1000000)
 	tvpd[tvpo+0] = secs
 	tvpd[tvpo+1] = usecs
 	return 0
