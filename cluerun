@@ -78,10 +78,15 @@ execute_engine() {
 			;;
 			
 		c)
-			gcc --std=c99 -g -Os -I src/c "$2" src/c/crt.c src/c/libc.c -lm -o $TEMPFILE
+			shift
+			echo "$@"
+			infiles=
 			while [ "$1" != "--" ]; do
+				infiles="$infiles $1"
 				shift
 			done
+			
+			gcc --std=c99 -g -Os -I src/c $infiles src/c/crt.c src/c/libc.c -lm -o $TEMPFILE
 
 			shift
 			shift
