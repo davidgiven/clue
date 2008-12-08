@@ -50,55 +50,6 @@ clue_program = cprogram {
 	install = pm.install("bin/clue")
 }
 
-luacg_program = cprogram {
-	CINCLUDES = {
-		PARENT,
-		"src/lua-goto"
-	},
-	CBUILDFLAGS = {"-g"},
-	CDEFINES = {
-		"LUA_ANSI"
-	},
-	CLIBRARIES = {
-		"m"
-	},
-		
-	cfile "src/lua-goto/luac.c",
-	cfile "src/lua-goto/print.c",
-	cfile "src/lua-goto/lapi.c",
-	cfile "src/lua-goto/lcode.c",
-	cfile "src/lua-goto/ldebug.c",
-	cfile "src/lua-goto/ldo.c",
-	cfile "src/lua-goto/ldump-goto.c",
-	cfile "src/lua-goto/lfunc.c",
-	cfile "src/lua-goto/lgc.c",
-	cfile "src/lua-goto/llex.c",
-	cfile "src/lua-goto/lmem.c",
-	cfile "src/lua-goto/lobject.c",
-	cfile "src/lua-goto/lopcodes.c",
-	cfile "src/lua-goto/lparser.c",
-	cfile "src/lua-goto/lstate.c",
-	cfile "src/lua-goto/lstring.c",
-	cfile "src/lua-goto/ltable.c",
-	cfile "src/lua-goto/ltm.c",
-	cfile "src/lua-goto/lundump.c",
-	cfile "src/lua-goto/lvm.c",
-	cfile "src/lua-goto/lzio.c",
-	cfile "src/lua-goto/lauxlib.c",
-	cfile "src/lua-goto/lbaselib.c",
-	cfile "src/lua-goto/ldblib.c",
-	cfile "src/lua-goto/liolib.c",
-	cfile "src/lua-goto/lmathlib.c",
-	cfile "src/lua-goto/loslib.c",
-	cfile "src/lua-goto/ltablib.c",
-	cfile "src/lua-goto/lstrlib.c",
-	cfile "src/lua-goto/loadlib.c",
-	cfile "src/lua-goto/linit.c",
-	
-	install = pm.install("bin/luacg")
-}
-
 default = group {
-	clue_program,
-	luacg_program
+	clue_program
 }
