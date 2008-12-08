@@ -64,8 +64,8 @@ Lua interpreter:
 ---snip---
 EOF
 
-./cluebat test/whetstone.c /tmp/benchmark.luac
-./cluerun -e lua -f /tmp/benchmark.luac
+./bin/clue -mlua test/whetstone.c > /tmp/benchmark.lua
+./cluerun -e lua -f /tmp/benchmark.lua
 
 cat << EOF
 ---snip---
@@ -75,7 +75,7 @@ LuaJIT:
 ---snip---
 EOF
 
-./cluerun -e luajit -f /tmp/benchmark.luac
+./cluerun -e luajit -f /tmp/benchmark.lua
 
 cat << EOF
 ---snip---
