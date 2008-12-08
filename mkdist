@@ -1,0 +1,92 @@
+#!/bin/sh
+# $Source: /cvsroot/spey/spey/mkdist,v $
+# $State: Exp $
+#
+# Script to build a distribution package.
+
+set -e
+PACKAGE=clue
+	
+if [ "$1" = "" ]; then
+	echo "Please specify a version number!"
+	exit 1
+fi
+
+if [ -d ../$PACKAGE-$1 ]; then
+	echo "I think you've already generated version $1."
+	exit 1
+fi
+
+mkdir ../$PACKAGE-$1
+cp -a --parents \
+	./README \
+	./README.benchmarks \
+	./cluerun \
+	./mkdist \
+	./pm \
+	./pmfile \
+	./pmlib/c.pm \
+	./pmlib/yacc.pm \
+	./regenerate-benchmark-report \
+	./run-benchmarks \
+	./sparse.patch \
+	./src/c/clue-crt.h \
+	./src/c/crt.c \
+	./src/c/libc.c \
+	./src/clue/avl.c \
+	./src/clue/avl.h \
+	./src/clue/binfostore.c \
+	./src/clue/cg-c.c \
+	./src/clue/cg-javascript.c \
+	./src/clue/cg-lisp.c \
+	./src/clue/cg-lua.c \
+	./src/clue/cg-perl5.c \
+	./src/clue/cg.c \
+	./src/clue/compile.c \
+	./src/clue/globals.h \
+	./src/clue/main.c \
+	./src/clue/pinfostore.c \
+	./src/clue/registeralloc.c \
+	./src/clue/rewrite.c \
+	./src/clue/symbolstore.c \
+	./src/clue/typestore.c \
+	./src/clue/utils.c \
+	./src/javascript/crt.js \
+	./src/javascript/libc.js \
+	./src/javascript/run.js \
+	./src/libc/include/malloc.h \
+	./src/libc/include/math.h \
+	./src/libc/include/stdio.h \
+	./src/libc/include/stdlib.h \
+	./src/libc/include/string.h \
+	./src/libc/include/sys/time.h \
+	./src/lisp/crt.lisp \
+	./src/lisp/libc.lisp \
+	./src/lisp/run.lisp \
+	./src/lua/clue/crt.lua \
+	./src/lua/clue/libc.lua \
+	./src/lua/run.lua \
+	./src/perl5/crt.pl \
+	./src/perl5/libc.pl \
+	./src/perl5/run.pl \
+	./test/clbg-binary-trees.c \
+	./test/clbg-fannkuch.c \
+	./test/clbg-mandelbrot.c \
+	./test/clbg-n-body.c \
+	./test/clbg-nsieve.c \
+	./test/clbg-nsievebits.c \
+	./test/clbg-partialsums.c \
+	./test/clbg-recursive.c \
+	./test/clbg.c \
+	./test/clbg.h \
+	./test/helloworld.c \
+	./test/whetstone.c \
+	\
+	../$PACKAGE-$1
+
+(cd .. && tar cvf $PACKAGE-$1.tar.bz2 --bzip2 $PACKAGE-$1)
+
+echo ""
+echo "Done --- but did you remember to update the version number in the README,"
+echo "speyctl, and the man pages?"
+
