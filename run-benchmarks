@@ -13,7 +13,7 @@ require "socket"
 
 local benchdata = {
 	{"clbg-binary-trees",              11},
-	{"clbg-mandelbrot",                1000},
+	{"clbg-mandelbrot",                750},
 	{"clbg-partialsums",               250000},
 	{"clbg-fannkuch",                  8},
 	{"clbg-recursive",                 6},
