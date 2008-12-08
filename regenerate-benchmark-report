@@ -19,9 +19,9 @@ The Computer Language Benchmark Game benchmarks. These should be considered
 unit tests only --- the numbers are not indicative of anything in particular.
 The time column indicates the absolute time in seconds; the comparison
 factor indicates the time taken as a multiple of the time gcc took. So
-1 means the same time, 2 means twice as long, etc. All times include
-loading and startup, which can be considerable for some targets (such as
-c, which involves compiling the target program with gcc).
+1 means the same time, 2 means twice as long, etc. Times include working time
+only, and not load and startup time, which would be considerable for some
+targets (such as c, which involves compiling the target program with gcc).
 
 
 ---snip---
