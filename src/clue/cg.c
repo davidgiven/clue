@@ -1106,7 +1106,10 @@ void generate_ep(struct entrypoint *ep)
 	get_binfo_list(&binfolist, &binfocount);
 	int i;
 	for (i = 0; i < binfocount; i++)
+	{
+		dump_bb(binfolist[i]->bb);
 		generate_binfo(binfolist[i]);
+	}
 
 	/* Now generate the function body with the zbuffer contents embedded
 	 * within. */
