@@ -1,16 +1,16 @@
-                                  CLUE v0.3
+                                  CLUE v0.4
                                   =========
 
                             (C) 2008 David Given
-                                 2008-07-19
+                                 2008-12-08
 
 
 INTRODUCTION
 ============
 
-Clue is an experimental C compiler for Lua, Javascript and Perl. It compiles,
-eventually, ANSI C programs into a form which may be run on a standard Lua,
-Javascript or Perl 5 interpreter.
+Clue is an experimental C compiler for Lua, Javascript, Perl, Common Lisp,
+and C. It compiles, eventually, ANSI C programs into a form which may be run
+on a standard runtime for any of these languages.
 
 Clue is EXPERIMENTAL and UNFINISHED. It is not suitable for any kind of
 production use. There are a number of C language features that are not
@@ -37,7 +37,17 @@ TO RUN PROGRAMS BUILT WITH THE JAVASCRIPT BACK END:
 TO RUN PROGRAMS BUILT WITH THE PERL5 BACK END:
    ...you will need a Perl 5 interpreter with the Time::Hires module (which
    is normally installed automatically).
+
+TO RUN PROGRAMS BUILT WITH THE COMMON LISP BACK END:
+   ...you will need a copy of the SBCL Common Lisp environment. It may or
+   may not work with other Common Lisp systems.
+   ...thanks to Peter Maydell (http://sourceforge.net/users/pm215) for
+   contributing this.
    
+TO RUN PROGRAMS BUILT WITH THE C BACK END:
+   ...you will need a C toolchain --- but then if you can build Clue, you
+   will already have one.
+      
 TO BUILD THE COMPILER:
    
 1. Fetch sparse 0.4.1 from here:
@@ -60,6 +70,7 @@ Clue is currently not designed to be installed anywhere; it should be run from
 the place where you built it. I did warn you it was experimental...
 
 
+
 USAGE
 =====
 
@@ -67,24 +78,20 @@ You may compile a C program as follows:
 
 	bin/clue -m<backend> test/helloworld.c > output.<backend>
 	
-<backend> may be lua, js or perl5.
+<backend> may be lua, js, perl5 or c.
    
 This will read in the source file, compile it and write out the result.
-
-IMPORTANT NOTE: if you're using the Lua back end, the resulting files *will
-not work*. They need processing with the supplied Lua 'assembler' to make the
-GOTO statements within them work properly. The cluebat script is a simple tool
-to do this for you; use 'cluebat test/helloworld.c output.luac' to compile,
-process and assemble a file.
 
 Once you have a runnable result, you may run it with the cluerun tool. This
 sets up the run-time environment needed to run Clue code.
 
-    ./cluerun -f output.luac
+    ./cluerun -f output.lua
 or  ./cluerun -f output.js
 or  ./cluerun -f output.pl
+or  ./cluerun -f output.lisp
+or  ./cluerun -f output.c
 
-By default, cluerun will try to use LuaJIT for .luac files, SpiderMonkey
+By default, cluerun will try to use LuaJIT for .lua files, SpiderMonkey
 for .js files and Perl 5 for .pl files. You can change this with the -e
 option, which may have one of the following values:
 
@@ -93,6 +100,8 @@ option, which may have one of the following values:
     smjs      SpiderMonkey Javascript interpreter
     rhino     Rhino Javascript interpreter
     perl5     Perl 5 interpreter
+    lisp      SBCL Common Lisp interpreter
+    c         C compiler via gcc
 
 You can pass arguments to the Clue program by suffixing cluerun with a --.
 
@@ -103,8 +112,10 @@ will get linked together and main() run.
 
     ./cluerun -e rhino -f file1.js -f file2.js -f file3.js -- arg1 arg2 arg3   
 
-However, this is currently untested. (sparse has some bugs that cause
-prototyping symbols to sometimes not work correctly.)
+This works to a certain extent (it's used by the benchmarks), but is still a
+bit problematic. (sparse has some bugs that cause prototyping symbols to
+sometimes not work correctly.)
+
 
 
 BENCHMARKING
@@ -122,12 +133,14 @@ The CLBG benchmarks can be run en mass using the supplied run-benchmarks
 script. It will run each benchmark using gcc, clue via a Lua interpreter,
 and clue via LuaJIT (if you have it). (Note that the script does *not*
 use the same number of iterations as the CLBG uses, as I'm not getting
-any younger.)
+any younger.) However, the CLBG benchmarks are very inaccurate and they
+should be considered unit tests only.
 
 Also supplied is a version of the very elderly Whetstone benchmark. This
 can be run as a normal program.
 
 See README.benchmarks for the results I get on my machine.
+
 
 
 WRITING PROGRAMS WITH CLUE
@@ -160,7 +173,7 @@ very differently to normal C compilers,
   sizeof(void*) == 2.
 
 - trying to operate on uninitialised memory will most likely produce a
-  runtime error (as it gets initialised to the Lua value nil, which you
+  runtime error (as it will probably be initialised to something that you
   can't do things like arithmetic operations on). 
 
 - the libc is *very* terse. I implemented only those functions necessary
@@ -168,6 +181,7 @@ very differently to normal C compilers,
 
 Violating any of these will sometimes produce a compile-time error but
 mostly you'll get a really, really strange run-time error.
+
 
 
 BUGS
@@ -185,6 +199,10 @@ Compiler bugs:
 
 - Multiple declarations of items doesn't work. (This is a sparse bug.)
 
+- sparse can't distinguish between different scalar types of the same size,
+  which means that backends can't distinguish between reals and integers; this
+  prevents certain optimisations (see the c backend; this is a sparse bug).
+
 - Various compiler features aren't implemented yet, like switch or varargs.
 
 Libc bugs:
@@ -193,20 +211,22 @@ Libc bugs:
   produce invalid data when run using clue.
   
 - printf is very basic and doesn't properly implement the printf spec
-  (different on each platform); for example, Lua can't handle the l modifier
-  and produces a run-time error if it sees one.
+  (different on each platform).
+  
+- the Common Lisp libc is only partially implemented, which means that the
+  benchmarks aren't run for it. 
 
 There are others. Oh, yes, there are others.
   
+
 
 TODO
 ====
 
 There are a number of ways to take Clue further.
 
-- Target Lua bytecode directly, rather than producing Lua source and then
-  compiling it and postprocessing it. This will prevent a lot of useless
-  bytecode being produced, so making things faster.
+- Add more targets. I'd like a Java target. There's also an experimental
+  Common Lisp target that was contributed that needs a libc to be useful. 
    
 - Finish the language coverage. There are a number of C language features
   that I haven't gotten around to doing (like switch).  
@@ -216,11 +236,6 @@ LICENSING
 =========
 
 Different parts of the supplied source are covered by different licenses.
-
-src/lua-goto contains a copy of the Lua 5.1.3 source code patched with a
-tweaked version of Luiz Henrique de Figueiredo's GOTO patch. This is used
-solely for assembling clue's output and not for running any code. These are
-covered by the MIT license. See the end of src/lua-goto/lua.h for the text.
 
 test/clbg-*.c are very slightly tweaked (mostly changing %ld to %d in
 format strings) versions of the Computer Language Benchmark Game
@@ -233,8 +248,11 @@ test/whetstone.c is a hacked copy of one of the million or so Whetstone
 variations dating from the 1980s. It is, I believe, public domain. If anyone
 has more information, please get in touch.
 
+src/clue/cg-lisp.c and src/lisp was contributed by Peter Maydell. It is
+covered by the Revised BSD license (text below).
+
 Practically everything else was written by me, David Given, and is covered by
-the three-clause BSD license. The text follows:
+the Revised BSD license. The text follows:
 
 Copyright (c) 2008, David Given
 All rights reserved.
@@ -266,4 +284,4 @@ POSSIBILITY OF SUCH DAMAGE.
 
 # $Id$
 # $HeadURL$
-# $LastChangedDate$
+# $LastChangedDate: 2008-07-19 23:13:17 +0100 (Sat, 19 Jul 2008) $
