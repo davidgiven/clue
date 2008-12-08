@@ -22,6 +22,7 @@ local benchdata = {
 }
 
 local function exec(s)
+	io.stderr:write("$ ", s, "\n")
 	local i = os.execute(s)
 	if (i ~= 0) then
 		os.exit(0)
@@ -32,52 +33,48 @@ local function pn(n)
 	return string.format("% 8.3f", n)
 end
 
+local function time(cmd)
+	local elapsed = 0
+	io.stderr:write("$ ", cmd, "\n")
+	local fp = io.popen(cmd)
+	for i in fp:lines() do
+		--io.stderr:write("> ", i, "\n")
+		local _, _, t = i:find("^ELAPSEDTIME=(.*)$")
+		if t then
+			elapsed = t
+		end
+	end
+	fp:close()
+	return elapsed;
+end
+
+local function benchmark(engine, extension, testname, gcctime, arg)
+	exec("./bin/clue -m"..extension.." test/clbg.c > /tmp/clbg."..extension)
+	exec("./bin/clue -m"..extension.." test/"..testname..".c > /tmp/benchmark."..extension)
+	
+	local t = time("./cluerun -e "..engine.." -f /tmp/clbg."..extension..
+		" -f /tmp/benchmark."..extension.." -- "..arg)
+	
+	if not gcctime then
+		gcctime = t
+	end
+	
+	print(engine..":", pn(t), pn(t / gcctime))
+end
+	
 print("", "", "", "time", "comparison factor")
 for i = 1, #benchdata do
 	local name, arg = unpack(benchdata[i])
 	print(name..":")
-	exec("gcc test/"..name..".c -o /tmp/benchmark -Os -lm")
+	exec("gcc test/clbg.c test/"..name..".c -o /tmp/benchmark -Os -lm")
 
-	local t = socket.gettime()
-	exec("/tmp/benchmark "..arg.." > /dev/null")
-	local gcctime = socket.gettime() - t
+	local gcctime = time("/tmp/benchmark "..arg)
 	print("gcc:", pn(gcctime), pn(1.0))
 
-	exec("./bin/clue -mc test/"..name..".c > /tmp/benchmark.c")
-	
-	t = socket.gettime()
-	exec("./cluerun -e c -f /tmp/benchmark.c -- "..arg.." > /dev/null")
-	local ctime = socket.gettime() - t
-	print("c:", pn(ctime), pn(ctime / gcctime))
-	
-	exec("./cluebat test/"..name..".c /tmp/benchmark")
-	
-	t = socket.gettime()
-	exec("./cluerun -e lua -f /tmp/benchmark.luac -- "..arg.." > /dev/null")
-	local luatime = socket.gettime() - t
-	print("lua:", pn(luatime), pn(luatime / gcctime))
-	
-	t = socket.gettime()
-	exec("./cluerun -e luajit -f /tmp/benchmark.luac -- "..arg.." > /dev/null")
-	local luajittime = socket.gettime() - t
-	print("luajit:", pn(luajittime), pn(luajittime / gcctime))
-	
-	exec("./bin/clue -mjs test/"..name..".c > /tmp/benchmark.js")
-	
-	t = socket.gettime()
-	exec("./cluerun -e smjs -f /tmp/benchmark.js -- "..arg.." > /dev/null")
-	local smjstime = socket.gettime() - t
-	print("smjs:", pn(smjstime), pn(smjstime / gcctime))
-	
-	t = socket.gettime()
-	exec("./cluerun -e rhino -f /tmp/benchmark.js -- "..arg.." > /dev/null")
-	local rhinotime = socket.gettime() - t
-	print("rhino:", pn(rhinotime), pn(rhinotime / gcctime))
-	
-	exec("./bin/clue -mperl5 test/"..name..".c > /tmp/benchmark.pl")
-	
-	t = socket.gettime()
-	exec("./cluerun -e perl5 -f /tmp/benchmark.pl -- "..arg.." > /dev/null")
-	local perl5time = socket.gettime() - t
-	print("perl5:", pn(perl5time), pn(perl5time / gcctime))	
+	benchmark("c", "c", name, gcctime, arg)
+	benchmark("luajit", "lua", name, gcctime, arg)
+	benchmark("lua", "lua", name, gcctime, arg)
+	benchmark("smjs", "js", name, gcctime, arg)
+	benchmark("rhino", "js", name, gcctime, arg)
+	benchmark("perl5", "perl5", name, gcctime, arg)
 end
