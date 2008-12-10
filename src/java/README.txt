@@ -9,6 +9,13 @@ Making globals public rather than private:                          100
 Storing arguments in a ClueMemory:                                  124
 (Native)                                                            (708)
 
+This is all using the following Java engine:
+
+java version "1.6.0_10"
+Java(TM) SE Runtime Environment (build 1.6.0_10-b33)
+Java HotSpot(TM) Client VM (build 11.0-b15, mixed mode, sharing)
+
+
 
 $Id$
 $HeadURL$
