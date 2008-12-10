@@ -274,6 +274,7 @@ extern const struct codegenerator cg_javascript;
 extern const struct codegenerator cg_perl5;
 extern const struct codegenerator cg_c;
 extern const struct codegenerator cg_lisp;
+extern const struct codegenerator cg_java;
 
 extern const char* aprintf(const char* fmt, ...);
 extern void zprintf(const char* fmt, ...);

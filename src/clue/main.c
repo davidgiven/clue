@@ -72,6 +72,7 @@ generator_table[] = {
 	{ "-mperl5",   &cg_perl5 },
 	{ "-mc",       &cg_c },
 	{ "-mlisp",    &cg_lisp },
+	{ "-mjava",    &cg_java },
 };
 
 static void init_code_generator(int* argc, const char* argv[])
