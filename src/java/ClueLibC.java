@@ -30,12 +30,9 @@ class ClueLibC
 	
 	public static final class ClueMemory
 	{
-		static final int INT = 0;
-		static final int OPTR = 1;
-		static final int FPTR = 2;
-		
 		final int length;
 		final double[] doubledata;
+		final int[] intdata;
 		final ClueMemory[] objectdata;
 		final ClueRunnable[] functiondata;
 		
@@ -43,18 +40,9 @@ class ClueLibC
 		{
 			length = size;
 			doubledata = new double[size];
+			intdata = new int[size];
 			objectdata = new ClueMemory[size];
 			functiondata = new ClueRunnable[size];
-		}
-		
-		public int guessType(int i)
-		{
-			if (objectdata[i] != null)
-				return OPTR;
-			else if (functiondata[i] != null)
-				return FPTR;
-			else
-				return INT;
 		}
 	};
 	
@@ -65,14 +53,14 @@ class ClueLibC
 		}
 	}
 	
-	private static final String ptrToString(double formatpo, ClueMemory formatpd)
+	private static final String ptrToString(int formatpo, ClueMemory formatpd)
 	{
 		int i = (int) formatpo;
 		StringBuffer s = new StringBuffer();
 		
 		for (;;)
 		{
-			double c = formatpd.doubledata[i++];
+			int c = formatpd.intdata[i++];
 			if (c == 0)
 				break;
 			
@@ -86,14 +74,14 @@ class ClueLibC
 	{
 		public void run()
 		{
-			int tvpo = (int) args.doubledata[2];
+			int tvpo = args.intdata[2];
 			ClueMemory tvpd = args.objectdata[3];
 			
 			long t = System.currentTimeMillis();
-			tvpd.doubledata[tvpo+0] = (double) (t / 1000);
-			tvpd.doubledata[tvpo+1] = (double) ((t % 1000) * 1000);
+			tvpd.intdata[tvpo+0] = (int) (t / 1000);
+			tvpd.intdata[tvpo+1] = (int) ((t % 1000) * 1000);
 			
-			args.doubledata[0] = 0;
+			args.intdata[0] = 0;
 		}
 	};
 	
@@ -101,21 +89,21 @@ class ClueLibC
 	{
 		public void run()
 		{
-			int destpo = (int) args.doubledata[2];
+			int destpo = args.intdata[2];
 			ClueMemory destpd = args.objectdata[3];
-			int srcpo = (int) args.doubledata[4];
+			int srcpo = args.intdata[4];
 			ClueMemory srcpd = args.objectdata[5];
 			
 			for (;;)
 			{
-				double c = srcpd.doubledata[srcpo++];
-				destpd.doubledata[destpo++] = c;
+				int c = srcpd.intdata[srcpo++];
+				destpd.intdata[destpo++] = c;
 				
 				if (c == 0)
 					break;
 			}
 			
-			args.doubledata[0] = destpo;
+			args.intdata[0] = destpo;
 			args.objectdata[1] = destpd;
 		}
 	};
@@ -124,7 +112,7 @@ class ClueLibC
 	{
 		public void run()
 		{
-			double formatpo = args.doubledata[2];
+			int formatpo = args.intdata[2];
 			ClueMemory formatpd = args.objectdata[3];
 			String format = ptrToString(formatpo, formatpd);
 
@@ -158,7 +146,7 @@ class ClueLibC
 								
 							case 's':
 							{
-								double po = args.doubledata[argindex++];
+								int po = args.intdata[argindex++];
 								ClueMemory pd = args.objectdata[argindex++];
 								outargs.add(ptrToString(po, pd));
 								break innerloop;
@@ -167,8 +155,8 @@ class ClueLibC
 							case 'd':
 							case 'u':
 							{
-								double v = args.doubledata[argindex++];
-								outargs.add(new Integer((int) v));
+								int v = args.intdata[argindex++];
+								outargs.add(new Integer(v));
 								break innerloop;
 							}
 							
@@ -186,7 +174,7 @@ class ClueLibC
 			}
 			
 			System.out.printf(format, outargs.toArray());
-			args.doubledata[0] = 0;
+			args.intdata[0] = 0;
 		}
 	};
 	

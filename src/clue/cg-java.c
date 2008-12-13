@@ -11,7 +11,6 @@
  */
 
 #include "globals.h"
-#define CLUE_EMULATE_INT_WITH_DOUBLE
 
 enum
 {
@@ -36,17 +35,15 @@ enum
 	REGCLASS_BOOL,
 	REGCLASS_OPTR,
 	REGCLASS_FPTR,
-#if !defined CLUE_EMULATE_INT_WITH_DOUBLE
 	REGCLASS_INT
-#endif
 };
 
 static const struct
 {
 	const char* prefix;
 	const char* type;
+	const char* memtype;
 	const char* accessor;
-	const char* boxtype;
 	const char* example;
 } regclassdata[] =
 {
@@ -54,8 +51,8 @@ static const struct
 	{
 		.prefix = "FLOAT",
 		.type = "double",
+		.memtype = "double",
 		.accessor = "doubledata",
-		.boxtype = "Double",
 		.example = "0",
 	},
 
@@ -63,8 +60,8 @@ static const struct
 	{
 		.prefix = "BOOL",
 		.type = "boolean",
+		.memtype = "boolean",
 		.accessor = "booleandata",
-		.boxtype = "Boolean",
 		.example = "false",
 	},
 
@@ -72,8 +69,8 @@ static const struct
 	{
 		.prefix = "OPTR",
 		.type = "ClueMemory",
+		.memtype = "ClueMemory",
 		.accessor = "objectdata",
-		.boxtype = "ClueMemory",
 		.example = "null",
 	},
 
@@ -81,21 +78,19 @@ static const struct
 	{
 		.prefix = "FPTR",
 		.type = "ClueRunnable",
+		.memtype = "ClueRunnable",
 		.accessor = "functiondata",
-		.boxtype = "ClueRunnable",
 		.example = "null",
 	},
 
-#if !defined CLUE_EMULATE_INT_WITH_DOUBLE
 	[REGCLASS_INT] =
 	{
 		.prefix = "INT",
-		.type = "long",
+		.type = "int",
+		.memtype = "int",
 		.accessor = "intdata",
-		.boxtype = "Long",
 		.example = "0",
 	},
-#endif
 };
 
 /* Reset the register tracking. */
@@ -206,9 +201,10 @@ static void cg_function_prologue(struct symbol* sym, int returning)
 
 static void cg_function_prologue_arg(struct hardreg* reg)
 {
-	zprintf("%s %s = args.%s[%d];\n",
+	zprintf("%s %s = (%s) args.%s[%d];\n",
 		regclassdata[reg->regclass].type,
 		show_hardreg(reg),
+		regclassdata[reg->regclass].type,
 		regclassdata[reg->regclass].accessor,
 		function_arg_list);
 
@@ -293,8 +289,9 @@ static void cg_copy(struct hardreg* src, struct hardreg* dest)
 static void cg_load(struct hardreg* simple, struct hardreg* base,
 		int offset, struct hardreg* dest)
 {
-	zprintf("%s = %s.%s[(int)%s + %d];\n",
+	zprintf("%s = (%s) %s.%s[(int)%s + %d];\n",
 			show_hardreg(dest),
+			regclassdata[dest->regclass].type,
 			show_hardreg(base),
 			regclassdata[dest->regclass].accessor,
 			show_hardreg(simple),
@@ -308,19 +305,21 @@ static void cg_store(struct hardreg* simple, struct hardreg* base,
 {
 	if (simple)
 	{
-		zprintf("%s.%s[(int)%s + %d] = %s;\n",
+		zprintf("%s.%s[(int)%s + %d] = (%s) %s;\n",
 				show_hardreg(base),
 				regclassdata[src->regclass].accessor,
 				show_hardreg(simple),
 				offset,
+				regclassdata[src->regclass].memtype,
 				show_hardreg(src));
 	}
 	else
 	{
-		zprintf("%s.%s[%d] = %s;\n",
+		zprintf("%s.%s[%d] = (%s) %s;\n",
 				show_hardreg(base),
 				regclassdata[src->regclass].accessor,
 				offset,
+				regclassdata[src->regclass].memtype,
 				show_hardreg(src));
 	}
 }
@@ -358,7 +357,7 @@ static void cg_set_symbol(struct symbol* sym, struct hardreg* dest)
 
 static void cg_toint(struct hardreg* src, struct hardreg* dest)
 {
-	zprintf("%s = (long) %s;\n", show_hardreg(dest), show_hardreg(src));
+	zprintf("%s = (int) %s;\n", show_hardreg(dest), show_hardreg(src));
 }
 
 /* Arithmetic negation. */
@@ -460,9 +459,10 @@ static void cg_call(struct hardreg* func,
 
 static void cg_call_arg(struct hardreg* arg)
 {
-	zprintf("args.%s[%u] = %s;\n",
+	zprintf("args.%s[%u] = (%s) %s;\n",
 			regclassdata[arg->regclass].accessor,
 			call_arg_count,
+			regclassdata[arg->regclass].memtype,
 			show_hardreg(arg));
 
 	call_arg_count++;
@@ -477,12 +477,14 @@ static void cg_call_end(void)
 	/* Now the call epilogue. */
 
 	if (call_return_reg1)
-		zprintf("%s = args.%s[0];\n",
+		zprintf("%s = (%s) args.%s[0];\n",
 				show_hardreg(call_return_reg1),
+				regclassdata[call_return_reg1->regclass].type,
 				regclassdata[call_return_reg1->regclass].accessor);
 	if (call_return_reg2)
-		zprintf("%s = args.%s[1];\n",
+		zprintf("%s = (%s) args.%s[1];\n",
 				show_hardreg(call_return_reg2),
+				regclassdata[call_return_reg2->regclass].type,
 				regclassdata[call_return_reg2->regclass].accessor);
 }
 
@@ -491,12 +493,14 @@ static void cg_call_end(void)
 static void cg_ret(struct hardreg* reg1, struct hardreg* reg2)
 {
 	if (reg1)
-		zprintf("args.%s[0] = %s;\n",
+		zprintf("args.%s[0] = (%s) %s;\n",
 				regclassdata[reg1->regclass].accessor,
+				regclassdata[reg1->regclass].memtype,
 				show_hardreg(reg1));
 	if (reg2)
 		zprintf("args.%s[1] = %s;\n",
 				regclassdata[reg2->regclass].accessor,
+				regclassdata[reg1->regclass].memtype,
 				show_hardreg(reg2));
 
 	if (function_is_initialiser)
@@ -514,15 +518,15 @@ static void cg_memcpy(struct hardregref* src, struct hardregref* dest, int size)
 
 	zprintf("args.doubledata[0] = sp;\n");
 	zprintf("args.objectdata[1] = stack;\n");
-	zprintf("args.doubledata[2] = %s;\n",
+	zprintf("args.doubledata[2] = (double) %s;\n",
 			show_hardreg(dest->simple));
 	zprintf("args.objectdata[3] = %s;\n",
 			show_hardreg(dest->base));
-	zprintf("args.doubledata[4] = %s;\n",
+	zprintf("args.doubledata[4] = (double) %s;\n",
 			show_hardreg(src->simple));
 	zprintf("args.objectdata[5] = %s;\n",
 			show_hardreg(src->base));
-	zprintf("args.doubledata[5] = %d;\n",
+	zprintf("args.doubledata[5] = (double) %d;\n",
 			size);
 	zprintf("_memcpy.run();\n");
 }
@@ -537,12 +541,8 @@ const struct codegenerator cg_java =
 
 	.register_class =
 	{
-#if defined CLUE_EMULATE_INT_WITH_DOUBLE
-		[REGCLASS_FLOAT] = REGTYPE_INT | REGTYPE_FLOAT,
-#else
 		[REGCLASS_INT] = REGTYPE_INT,
 		[REGCLASS_FLOAT] = REGTYPE_FLOAT,
-#endif
 		[REGCLASS_BOOL] = REGTYPE_BOOL,
 		[REGCLASS_OPTR] = REGTYPE_OPTR,
 		[REGCLASS_FPTR] = REGTYPE_FPTR
