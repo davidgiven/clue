@@ -38,7 +38,7 @@ local function time(cmd)
 	io.stderr:write("$ ", cmd, "\n")
 	local fp = io.popen(cmd)
 	for i in fp:lines() do
-		--io.stderr:write("> ", i, "\n")
+--		io.stderr:write("> ", i, "\n")
 		local _, _, t = i:find("^ELAPSEDTIME=(.*)$")
 		if t then
 			elapsed = t
@@ -48,9 +48,9 @@ local function time(cmd)
 	return elapsed;
 end
 
-local function benchmark(engine, extension, testname, gcctime, arg)
-	exec("./bin/clue -m"..extension.." test/clbg.c > /tmp/clbg."..extension)
-	exec("./bin/clue -m"..extension.." test/"..testname..".c > /tmp/benchmark."..extension)
+local function benchmark(engine, cg, extension, testname, gcctime, arg)
+	exec("./bin/clue -m"..cg.." test/clbg.c > /tmp/clbg."..extension)
+	exec("./bin/clue -m"..cg.." test/"..testname..".c > /tmp/benchmark."..extension)
 	
 	local t = time("./cluerun -e "..engine.." -f /tmp/clbg."..extension..
 		" -f /tmp/benchmark."..extension.." -- "..arg)
@@ -71,10 +71,10 @@ for i = 1, #benchdata do
 	local gcctime = time("/tmp/benchmark "..arg)
 	print("gcc:", pn(gcctime), pn(1.0))
 
-	benchmark("c", "c", name, gcctime, arg)
-	benchmark("luajit", "lua", name, gcctime, arg)
-	benchmark("lua", "lua", name, gcctime, arg)
-	benchmark("smjs", "js", name, gcctime, arg)
-	benchmark("rhino", "js", name, gcctime, arg)
-	benchmark("perl5", "perl5", name, gcctime, arg)
+	benchmark("c", "c", "c", name, gcctime, arg)
+	benchmark("java", "java", "j", name, gcctime, arg)
+	benchmark("luajit", "lua", "lua", name, gcctime, arg)
+	benchmark("lua", "lua", "lua", name, gcctime, arg)
+	benchmark("smjs", "js", "js", name, gcctime, arg)
+	benchmark("perl5", "perl5", "perl5", name, gcctime, arg)
 end

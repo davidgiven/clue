@@ -59,6 +59,28 @@ bin/clue -mc test/whetstone.c > /tmp/benchmark.c
 cat << EOF
 ---snip---
 
+Java:
+
+---snip---
+EOF
+
+bin/clue -mjava test/whetstone.c > /tmp/benchmark.j
+./cluerun -e java -f /tmp/benchmark.j
+
+cat << EOF
+---snip---
+
+LuaJIT:
+
+---snip---
+EOF
+
+./bin/clue -mlua test/whetstone.c > /tmp/benchmark.lua
+./cluerun -e luajit -f /tmp/benchmark.lua
+
+cat << EOF
+---snip---
+
 Lua interpreter:
 
 ---snip---
@@ -70,16 +92,6 @@ EOF
 cat << EOF
 ---snip---
 
-LuaJIT:
-
----snip---
-EOF
-
-./cluerun -e luajit -f /tmp/benchmark.lua
-
-cat << EOF
----snip---
-
 SpiderMonkey:
 
 --snip---
@@ -87,16 +99,6 @@ EOF
 
 bin/clue -mjs test/whetstone.c > /tmp/benchmark.js
 ./cluerun -e smjs -f /tmp/benchmark.js
-
-cat << EOF
----snip---
-
-Rhino:
-
----snip---
-EOF
-
-./cluerun -e rhino -f /tmp/benchmark.js
 
 cat << EOF
 ---snip---
