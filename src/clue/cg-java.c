@@ -83,12 +83,15 @@ static const struct
 		.example = "null",
 	},
 
+	/* A sparse bug means we have to use the same types for ints and doubles.
+	 */
+
 	[REGCLASS_INT] =
 	{
 		.prefix = "INT",
-		.type = "int",
-		.memtype = "int",
-		.accessor = "intdata",
+		.type = "double",
+		.memtype = "double",
+		.accessor = "doubledata",
 		.example = "0",
 	},
 };
@@ -395,14 +398,28 @@ SIMPLE_INFIX_2OP(shr, ">>", "(long)")
 				show_hardreg(src1), show_hardreg(src2)); \
 	}
 
-SIMPLE_SET_2OP(booland, "&&", "(long)")
-SIMPLE_SET_2OP(boolor, "||", "(long)")
 SIMPLE_SET_2OP(set_gt, ">", "")
 SIMPLE_SET_2OP(set_ge, ">=", "")
 SIMPLE_SET_2OP(set_lt, "<", "")
 SIMPLE_SET_2OP(set_le, "<=", "")
 SIMPLE_SET_2OP(set_eq, "==", "")
 SIMPLE_SET_2OP(set_ne, "!=", "")
+
+static void cg_booland(struct hardreg* src1, struct hardreg* src2, \
+		struct hardreg* dest) \
+{ \
+	zprintf("%s = ((%s != 0) && (%s != 0)) ? 1 : 0;\n", \
+			show_hardreg(dest), \
+			show_hardreg(src1), show_hardreg(src2)); \
+}
+
+static void cg_boolor(struct hardreg* src1, struct hardreg* src2, \
+		struct hardreg* dest) \
+{ \
+	zprintf("%s = ((%s != 0) || (%s != 0)) ? 1 : 0;\n", \
+			show_hardreg(dest), \
+			show_hardreg(src1), show_hardreg(src2)); \
+}
 
 /* Select operations. */
 
@@ -498,9 +515,9 @@ static void cg_ret(struct hardreg* reg1, struct hardreg* reg2)
 				regclassdata[reg1->regclass].memtype,
 				show_hardreg(reg1));
 	if (reg2)
-		zprintf("args.%s[1] = %s;\n",
+		zprintf("args.%s[1] = (%s) %s;\n",
 				regclassdata[reg2->regclass].accessor,
-				regclassdata[reg1->regclass].memtype,
+				regclassdata[reg2->regclass].memtype,
 				show_hardreg(reg2));
 
 	if (function_is_initialiser)

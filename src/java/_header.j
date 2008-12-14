@@ -10,5 +10,5 @@
  * $LastChangedDate: 2007-04-30 22:41:42 +0000 (Mon, 30 Apr 2007) $
  */
 
-class ClueProgram extends ClueLibC
+class ClueProgram extends ClueRuntime
 {

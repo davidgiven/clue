@@ -24,7 +24,9 @@ once I was quite a long way into the process.
 
 
 [1] This *drastically* changed the shape of the benchmarks, making the program
-terminate much sooner --- but giving much the same results!
+terminate much sooner --- but giving much the same results! Unfortunately it
+triggers a sparse bug which means that constants get passed to functions in the
+wrong register, so I had to take it out again.
 
 
 $Id$
