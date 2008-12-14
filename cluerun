@@ -12,7 +12,9 @@
 set -e
 
 TEMPFILE=`mktemp`
-trap "rm -f $TEMPFILE" 0
+TEMPDIR=$TEMPFILE.dir
+mkdir $TEMPDIR
+trap "echo rm -fr $TEMPFILE $TEMPDIR" 0
 
 validate_engine() {
 	case "$1" in
@@ -48,6 +50,11 @@ validate_engine() {
 
 		sbcl)
 			which sbcl > /dev/null
+			return $?
+			;;
+
+		java)
+			(which java && which javac) > /dev/null
 			return $?
 			;;
 	esac
@@ -91,6 +98,23 @@ execute_engine() {
 			shift
 			exec $TEMPFILE "$@"
 			;;			
+
+		java)
+			shift
+			infiles=
+			while [ "$1" != "--" ]; do
+				infiles="$infiles $1"
+				shift
+			done
+
+			cat src/java/_header.j $infiles src/java/_footer.j > $TEMPDIR/program.java
+			javac -d $TEMPDIR $TEMPDIR/program.java src/java/ClueRuntime.java
+
+			shift
+			shift
+			echo exec java -server -cp $TEMPDIR ClueProgram -- "$@"
+			exec java -server -cp $TEMPDIR ClueProgram -- "$@"
+			;;
 
 		sbcl)
 			exec sbcl --noinform --load src/lisp/run.lisp --no-userinit --end-toplevel-options "$@"
@@ -155,6 +179,10 @@ if [ "$engine" = "" ]; then
 			engine=sbcl
 			;;
 			
+		*.j)
+			engine=java
+			;;
+
 		*)
 			echo "cluerun: unable to guess engine type; try -e" 1>&2
 			exit 1
