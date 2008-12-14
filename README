@@ -1,16 +1,16 @@
-                                  CLUE v0.4
+                                  CLUE v0.5
                                   =========
 
                             (C) 2008 David Given
-                                 2008-12-08
+                                 2008-12-14
 
 
 INTRODUCTION
 ============
 
 Clue is an experimental C compiler for Lua, Javascript, Perl, Common Lisp,
-and C. It compiles, eventually, ANSI C programs into a form which may be run
-on a standard runtime for any of these languages.
+Java, and C. It compiles, eventually, ANSI C programs into a form which may
+be run on a standard runtime for any of these languages.
 
 Clue is EXPERIMENTAL and UNFINISHED. It is not suitable for any kind of
 production use. There are a number of C language features that are not
@@ -47,7 +47,12 @@ TO RUN PROGRAMS BUILT WITH THE COMMON LISP BACK END:
 TO RUN PROGRAMS BUILT WITH THE C BACK END:
    ...you will need a C toolchain --- but then if you can build Clue, you
    will already have one.
-      
+
+TO RUN PROGRAMS BUILT WITH THE JAVA BACK END:
+   ...you will need a JDK. Clue generates class files by producing Java source
+   code and compiling it, so you'll need a javac as well as a java interpreter.
+   I develop with the official Sun Java 6 distribution.
+         
 TO BUILD THE COMPILER:
    
 1. Fetch sparse 0.4.1 from here:
@@ -62,7 +67,7 @@ TO BUILD THE COMPILER:
 3. Do:
 
      ./pm
-     
+
    Clue will then build the compiler and the modified Lua interpreter that's
    used as an assembler.
    
@@ -76,9 +81,10 @@ USAGE
 
 You may compile a C program as follows:
 
-	bin/clue -m<backend> test/helloworld.c > output.<backend>
+	bin/clue -m<backend> test/helloworld.c > output.<extension>
 	
-<backend> may be lua, js, perl5 or c.
+<backend> may be lua, js, perl5, java or c. <extension> is normally the same
+as the backend, except for Java, which should use j.
    
 This will read in the source file, compile it and write out the result.
 
@@ -89,6 +95,7 @@ sets up the run-time environment needed to run Clue code.
 or  ./cluerun -f output.js
 or  ./cluerun -f output.pl
 or  ./cluerun -f output.lisp
+or  ./cluerun -f output.j
 or  ./cluerun -f output.c
 
 By default, cluerun will try to use LuaJIT for .lua files, SpiderMonkey
@@ -101,6 +108,7 @@ option, which may have one of the following values:
     rhino     Rhino Javascript interpreter
     perl5     Perl 5 interpreter
     lisp      SBCL Common Lisp interpreter
+    j         standard Java compiler and interpreter
     c         C compiler via gcc
 
 You can pass arguments to the Clue program by suffixing cluerun with a --.
@@ -199,10 +207,13 @@ Compiler bugs:
 
 - Multiple declarations of items doesn't work. (This is a sparse bug.)
 
-- sparse can't distinguish between different scalar types of the same size,
-  which means that backends can't distinguish between reals and integers; this
-  prevents certain optimisations (see the c backend; this is a sparse bug).
-
+- sparse can't always distinguish between different scalar types of the same
+  size, which means that backends can't distinguish between reals and integers;
+  this usually manifests itself in parameters being passed to functions in the
+  wrong register. This means that backends must use the same type to represent
+  both reals and integers, which prevents certain optimisations in c and java.
+  (This is a sparse bug.)
+  
 - Various compiler features aren't implemented yet, like switch or varargs.
 
 Libc bugs:
@@ -225,8 +236,10 @@ TODO
 
 There are a number of ways to take Clue further.
 
-- Add more targets. I'd like a Java target. There's also an experimental
-  Common Lisp target that was contributed that needs a libc to be useful. 
+- Add more targets. I'd like the Java target to emit bytecode; that way we
+  get a real goto implementation, which should boost performance. There's
+  also an experimental Common Lisp target that was contributed that needs a
+  libc to be useful. 
    
 - Finish the language coverage. There are a number of C language features
   that I haven't gotten around to doing (like switch).  
@@ -266,9 +279,6 @@ are met:
     * Redistributions in binary form must reproduce the above copyright
       notice, this list of conditions and the following disclaimer in
       the documentation and/or other materials provided with the distribution.
-    * Neither the name of the <ORGANIZATION> nor the names of its contributors
-      may be used to endorse or promote products derived from this software 
-      without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
