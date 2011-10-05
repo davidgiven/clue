@@ -73,8 +73,9 @@ for i = 1, #benchdata do
 
 	benchmark("c", "c", "c", name, gcctime, arg)
 	benchmark("java", "java", "j", name, gcctime, arg)
-	benchmark("luajit", "lua", "lua", name, gcctime, arg)
+	--benchmark("luajit", "lua", "lua", name, gcctime, arg)
+	benchmark("luajit2", "lua", "lua", name, gcctime, arg)
 	benchmark("lua", "lua", "lua", name, gcctime, arg)
-	benchmark("smjs", "js", "js", name, gcctime, arg)
+	benchmark("js", "js", "js", name, gcctime, arg)
 	benchmark("perl5", "perl5", "perl5", name, gcctime, arg)
 end

@@ -70,13 +70,13 @@ bin/clue -mjava test/whetstone.c > /tmp/benchmark.j
 cat << EOF
 ---snip---
 
-LuaJIT:
+LuaJIT 2:
 
 ---snip---
 EOF
 
 ./bin/clue -mlua test/whetstone.c > /tmp/benchmark.lua
-./cluerun -e luajit -f /tmp/benchmark.lua
+./cluerun -e luajit2 -f /tmp/benchmark.lua
 
 cat << EOF
 ---snip---
@@ -92,13 +92,13 @@ EOF
 cat << EOF
 ---snip---
 
-SpiderMonkey:
+Node Javascript:
 
 --snip---
 EOF
 
 bin/clue -mjs test/whetstone.c > /tmp/benchmark.js
-./cluerun -e smjs -f /tmp/benchmark.js
+./cluerun -e js -f /tmp/benchmark.js
 
 cat << EOF
 ---snip---
