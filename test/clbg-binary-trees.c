@@ -99,9 +99,9 @@ int clbgmain(int argc, const char* argv[])
     stretchTree = BottomUpTree(0, stretchDepth);
     printf
     (
-        "stretch tree of depth %u\t check: %i\n",
-        stretchDepth,
-        ItemCheck(stretchTree)
+        "stretch tree of depth %d\t check: %i\n",
+        (int) stretchDepth,
+        (int) ItemCheck(stretchTree)
     );
 
     DeleteTree(stretchTree);
@@ -130,9 +130,9 @@ int clbgmain(int argc, const char* argv[])
         printf
         (
             "%i\t trees of depth %u\t check: %i\n",
-            iterations * 2,
+            (int) (iterations * 2),
             depth,
-            check
+            (int) check
         );
     } /* for(depth = minDepth...) */
 
@@ -140,7 +140,7 @@ int clbgmain(int argc, const char* argv[])
     (
         "long lived tree of depth %u\t check: %i\n",
         maxDepth,
-        ItemCheck(longLivedTree)
+        (int) ItemCheck(longLivedTree)
     );
 
     return 0;
