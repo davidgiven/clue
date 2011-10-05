@@ -350,6 +350,10 @@ int main(int argc, const char* argv[])
 	if (xtra < 1)
 		xtra = 1;
 
+	/* This is necessary to prevent odd things happening on fast computers. */
+	if (xtra > 3000)
+		xtra = 3000;
+
 	calibrate = 0;
 
 	printf("\nUse %d  passes (x 100)\n", xtra);
