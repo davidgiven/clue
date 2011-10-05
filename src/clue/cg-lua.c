@@ -516,5 +516,5 @@ const struct codegenerator cg_lua =
 
 	.ret = cg_ret,
 
-	.memcpy = cg_memcpy
+	.memcpyimpl = cg_memcpy
 };

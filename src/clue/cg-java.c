@@ -635,5 +635,5 @@ const struct codegenerator cg_java =
 
 	.ret = cg_ret,
 
-	.memcpy = cg_memcpy
+	.memcpyimpl = cg_memcpy
 };

@@ -474,5 +474,5 @@ const struct codegenerator cg_lisp =
 
 	.ret = cg_ret,
 
-	.memcpy = cg_memcpy
+	.memcpyimpl = cg_memcpy
 };

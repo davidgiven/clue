@@ -22,8 +22,8 @@ static int compare_cb(const void* lhs, const void* rhs)
 {
 	const struct binfo* n1 = lhs;
 	const struct binfo* n2 = rhs;
-	unsigned int i1 = (unsigned int) n1->bb;
-	unsigned int i2 = (unsigned int) n2->bb;
+	unsigned int i1 = (unsigned int) (size_t)n1->bb;
+	unsigned int i2 = (unsigned int) (size_t)n2->bb;
 	if (i1 < i2)
 		return -1;
 	else if (i1 > i2)

@@ -131,7 +131,8 @@ clue_int_t _printf(clue_int_t sp, clue_optr_t stack,
 						clue_optr_t pd = va_arg(ap, clue_optr_t);
 
 						chars += printf("[PTR:%08X+%08X]",
-								(unsigned int) pd, (unsigned int) po);
+								(unsigned int) (size_t)pd,
+								(unsigned int) (size_t)po);
 						break;
 					}
 

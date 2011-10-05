@@ -19,8 +19,8 @@ static int compare_cb(const void* lhs, const void* rhs)
 {
 	const struct pinfo* n1 = lhs;
 	const struct pinfo* n2 = rhs;
-	unsigned int i1 = (unsigned int) n1->pseudo;
-	unsigned int i2 = (unsigned int) n2->pseudo;
+	unsigned int i1 = (unsigned int) (size_t) n1->pseudo;
+	unsigned int i2 = (unsigned int) (size_t) n2->pseudo;
 	if (i1 < i2)
 		return -1;
 	else if (i1 > i2)
