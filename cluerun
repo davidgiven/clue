@@ -16,6 +16,8 @@ TEMPDIR=$TEMPFILE.dir
 mkdir $TEMPDIR
 trap "echo rm -fr $TEMPFILE $TEMPDIR" 0
 
+LUAJIT2BIN=luajit-2.0.0-beta5
+
 validate_engine() {
 	case "$1" in
 		lua)
@@ -28,8 +30,13 @@ validate_engine() {
 			return $?
 			;;
 			
-		smjs)
-			which smjs > /dev/null
+		luajit2)
+			which $LUAJIT2BIN > /dev/null
+			return $?
+			;;
+			
+		js)
+			which js > /dev/null
 			return $?
 			;;
 			
@@ -72,8 +79,12 @@ execute_engine() {
 			exec luajit -O src/lua/run.lua -- "$@"
 			;;
 			
-		smjs)
-			exec smjs src/javascript/run.js "$@"
+		luajit2)
+			exec $LUAJIT2BIN src/lua/run.lua -- "$@"
+			;;
+			
+		js)
+			exec js src/javascript/run.js "$@"
 			;;
 			
 		rhino)
