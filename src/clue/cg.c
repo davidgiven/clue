@@ -110,7 +110,7 @@ static void generate_store(struct instruction *insn, struct bb_state *state)
 					show_hardregref(&src), show_hardregref(&dest),
 					bits_to_bytes(insn->size));
 
-			cg->memcpy(&src, &dest, bits_to_bytes(insn->size));
+			cg->memcpyimpl(&src, &dest, 3);//bits_to_bytes(insn->size));
 			break;
 		}
 

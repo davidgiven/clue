@@ -265,7 +265,7 @@ struct codegenerator
 
 	void (*ret)(struct hardreg* simple, struct hardreg* base);
 
-	void (*memcpy)(struct hardregref* src, struct hardregref* dest, int size);
+	void (*memcpyimpl)(struct hardregref* src, struct hardregref* dest, int size);
 };
 
 extern const struct codegenerator* cg;

@@ -106,7 +106,7 @@ static void init_code_generator(int* argc, const char* argv[])
 	}
 
 	if (!cg)
-		die("you must specify a code generator");
+		die("Usage: clue [-m[lua|js|perl5|c|lisp|java]] file.c ..");
 }
 
 int main(int argc, const char* argv[])

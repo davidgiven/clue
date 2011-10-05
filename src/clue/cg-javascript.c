@@ -377,7 +377,7 @@ static void cg_memcpy(struct hardregref* src, struct hardregref* dest, int size)
 	assert(src->type == TYPE_PTR);
 	assert(dest->type == TYPE_PTR);
 
-	zprintf("_memcpy(sp, stack, %s, %s, %s, %s, %d);\n",
+	zprintf("memcpyimpl(sp, stack, %s, %s, %s, %s, %d);\n",
 			show_hardreg(dest->simple),
 			show_hardreg(dest->base),
 			show_hardreg(src->simple),
@@ -468,5 +468,5 @@ const struct codegenerator cg_javascript =
 
 	.ret = cg_ret,
 
-	.memcpy = cg_memcpy
+	.memcpyimpl = cg_memcpy
 };

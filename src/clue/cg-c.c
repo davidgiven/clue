@@ -657,5 +657,5 @@ const struct codegenerator cg_c =
 
 	.ret = cg_ret,
 
-	.memcpy = cg_memcpy
+	.memcpyimpl = cg_memcpy
 };
