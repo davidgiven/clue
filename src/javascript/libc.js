@@ -338,7 +338,7 @@ function _atoi(sp, stack, po, pd)
 	return s|0;
 }
 
-_atol = _atoi;
+var _atol = _atoi;
 
 
 /****************************************************************************
