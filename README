@@ -1,8 +1,8 @@
-                                  CLUE v0.5
+                                  CLUE v0.6
                                   =========
 
-                            (C) 2008 David Given
-                                 2008-12-14
+                          (C) 2008-2013 David Given
+                                 2013-03-14
 
 
 INTRODUCTION
@@ -26,13 +26,16 @@ Installation is unfortunately rather involved and will only work on Unix-like
 systems. I develop on Linux. You *may* be able to make it all work on Cygwin
 but you're on your own. Sorry.
 
-TO RUN PROGRAMS BUILT WITH THE LUA BACK END:
+TO RUN PROGRAMS BUILT WITH THE LUA51 BACK END:
    ...you will need a Lua 5.1.3 interpreter (such as the stock Lua or Mike
    Pall's LuaJIT) with the LuaSocket and BitLib modules installed.
 
+TO RUN PROGRAMS BUILT WITH THE LUA52 BACK END:
+   ...you will need a Lua 5.2 interpreter (such as the stock Lua or Mike
+   Pall's LuaJIT) with the LuaSocket module installed.
+
 TO RUN PROGRAMS BUILT WITH THE JAVASCRIPT BACK END:
-   ...you will need a command-line Javascript interpreter such as SpiderMonkey
-   or Rhino.
+   ...you will need Node.
 
 TO RUN PROGRAMS BUILT WITH THE PERL5 BACK END:
    ...you will need a Perl 5 interpreter with the Time::Hires module (which
@@ -83,8 +86,7 @@ You may compile a C program as follows:
 
 	bin/clue -m<backend> test/helloworld.c > output.<extension>
 	
-<backend> may be lua, js, perl5, java or c. <extension> is normally the same
-as the backend, except for Java, which should use j.
+<backend> may be lua51, lua52, js, perl5, java or c.
    
 This will read in the source file, compile it and write out the result.
 
@@ -102,23 +104,23 @@ By default, cluerun will try to use LuaJIT for .lua files, SpiderMonkey
 for .js files and Perl 5 for .pl files. You can change this with the -e
 option, which may have one of the following values:
 
-    lua       standard Lua interpreter
-    luajit    Mike Pall's LuaJIT
-    smjs      SpiderMonkey Javascript interpreter
-    rhino     Rhino Javascript interpreter
-    perl5     Perl 5 interpreter
-    lisp      SBCL Common Lisp interpreter
-    j         standard Java compiler and interpreter
-    c         C compiler via gcc
+    lua51        standard Lua interpreter (version 5.1)
+    lua52        standard Lua interpreter (version 5.2)
+    luajit2-jon  Mike Pall's LuaJIT in JIT mode
+    js           Node V8 Javascript interpreter
+    perl5        Perl 5 interpreter
+    lisp         SBCL Common Lisp interpreter
+    j            standard Java compiler and interpreter
+    c            C compiler via gcc
 
 You can pass arguments to the Clue program by suffixing cluerun with a --.
 
-    ./cluerun -e rhino -f output.js -- arg1 arg2 arg3
+    ./cluerun -e js -f output.js -- arg1 arg2 arg3
 
 You may use multiple files --- all of the same type, of course --- and they
 will get linked together and main() run.
 
-    ./cluerun -e rhino -f file1.js -f file2.js -f file3.js -- arg1 arg2 arg3   
+    ./cluerun -e js -f file1.js -f file2.js -f file3.js -- arg1 arg2 arg3   
 
 This works to a certain extent (it's used by the benchmarks), but is still a
 bit problematic. (sparse has some bugs that cause prototyping symbols to
