@@ -269,7 +269,9 @@ struct codegenerator
 };
 
 extern const struct codegenerator* cg;
-extern const struct codegenerator cg_lua;
+extern const struct codegenerator cg_lua51;
+extern const struct codegenerator cg_lua52;
+extern const struct codegenerator cg_lua52ffi;
 extern const struct codegenerator cg_javascript;
 extern const struct codegenerator cg_perl5;
 extern const struct codegenerator cg_c;

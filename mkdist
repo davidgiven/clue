@@ -41,6 +41,7 @@ cp -a --parents \
 	./src/clue/cg-lisp.c \
 	./src/clue/cg-lua.c \
 	./src/clue/cg-perl5.c \
+	./src/clue/cg-java.c \
 	./src/clue/cg.c \
 	./src/clue/compile.c \
 	./src/clue/globals.h \
@@ -54,6 +55,10 @@ cp -a --parents \
 	./src/javascript/crt.js \
 	./src/javascript/libc.js \
 	./src/javascript/run.js \
+	./src/java/_footer.j \
+	./src/java/_header.j \
+	./src/java/ClueRuntime.java \
+	./src/java/README.txt \
 	./src/libc/include/malloc.h \
 	./src/libc/include/math.h \
 	./src/libc/include/stdio.h \

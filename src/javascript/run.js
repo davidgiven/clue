@@ -13,12 +13,12 @@
 /* Some setup. */
 
 var fs = require("fs");
-var sys = require("sys");
+var util = require("util");
 
 function print(s)
 {
-	sys.print(s);
-	sys.print("\n");
+	util.print(s);
+	util.print("\n");
 }
 
 function quit()

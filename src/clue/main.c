@@ -67,7 +67,8 @@ static struct
 	const struct codegenerator* cg;
 }
 generator_table[] = {
-	{ "-mlua",     &cg_lua },
+	{ "-mlua51",   &cg_lua51 },
+	{ "-mlua52",   &cg_lua52 },
 	{ "-mjs",      &cg_javascript },
 	{ "-mperl5",   &cg_perl5 },
 	{ "-mc",       &cg_c },

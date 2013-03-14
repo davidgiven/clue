@@ -159,16 +159,20 @@ static void cg_function_prologue_reg(struct hardreg* reg)
 
 static void cg_function_prologue_end(void)
 {
+#if defined LUA51
 	zprintf("local state = 0;\n");
 	zprintf("while true do\n");
 	zprintf("repeat\n");
 	zprintf("if state == 0 then\n");
+#endif
 }
 
 static void cg_function_epilogue(void)
 {
+#if defined LUA51
 	zprintf("until true\n");
 	zprintf("end\n");
+#endif
 	zprintf("end\n\n");
 	if (function_is_initializer)
 		zprintf("clue.crt.add_initializer(initializer)\n");
@@ -179,14 +183,22 @@ static void cg_function_epilogue(void)
 static void cg_bb_start(struct binfo* binfo)
 {
 	if (binfo->id != 0)
+#if defined LUA51
 		zprintf("if state == %d then\n", binfo->id);
+#else
+		zprintf("::label_%d::\n", binfo->id);
+#endif
 }
 
 /* Ends a basic block in an unconditional jump. */
 
 static void cg_bb_end_jump(struct binfo* target)
 {
+#if defined LUA51
 	zprintf("state = %d break end\n", target->id);
+#else
+	zprintf("goto label_%d\n", target->id);
+#endif
 }
 
 /* Ends a basic block in a conditional jump based on an arithmetic value. */
@@ -194,8 +206,13 @@ static void cg_bb_end_jump(struct binfo* target)
 static void cg_bb_end_if_arith(struct hardreg* cond,
 		struct binfo* truetarget, struct binfo* falsetarget)
 {
+#if defined LUA51
 	zprintf("if %s ~= 0 then state = %d else state = %d end break end\n",
 			show_hardreg(cond), truetarget->id, falsetarget->id);
+#else
+	zprintf("if %s ~= 0 then goto label_%d else goto label_%d end\n",
+			show_hardreg(cond), truetarget->id, falsetarget->id);
+#endif
 }
 
 /* Ends a basic block in a conditional jump based on a pointer base value. */
@@ -203,8 +220,13 @@ static void cg_bb_end_if_arith(struct hardreg* cond,
 static void cg_bb_end_if_ptr(struct hardreg* cond,
 		struct binfo* truetarget, struct binfo* falsetarget)
 {
+#if defined LUA51
 	zprintf("if %s then state = %d else state = %d end break end\n",
 			show_hardreg(cond), truetarget->id, falsetarget->id);
+#else
+	zprintf("if %s then goto label_%d else goto label_%d end\n",
+			show_hardreg(cond), truetarget->id, falsetarget->id);
+#endif
 }
 
 /* Copies a single register. */
@@ -415,7 +437,9 @@ static void cg_ret(struct hardreg* reg1, struct hardreg* reg2)
 	}
 	else
 		zprintf("do return end\n");
+#if defined LUA51
 	zprintf("end\n");
+#endif
 }
 
 /* Do a structure copy from one location to another. */
@@ -434,7 +458,15 @@ static void cg_memcpy(struct hardregref* src, struct hardregref* dest, int size)
 }
 
 
-const struct codegenerator cg_lua =
+const struct codegenerator
+#if defined LUA51
+	cg_lua51
+#elif defined LUA52
+	cg_lua52
+#else
+	#error "Unknown Lua dialect!"
+#endif
+	=
 {
 	.pointer_zero_offset = 1,
 	.spname = "sp",
