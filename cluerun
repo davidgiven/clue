@@ -16,21 +16,26 @@ TEMPDIR=$TEMPFILE.dir
 mkdir $TEMPDIR
 trap "echo rm -fr $TEMPFILE $TEMPDIR" 0
 
-LUAJIT2BIN=luajit-2.0.0-beta5
+LUAJIT2BIN="luajit"
 
 validate_engine() {
 	case "$1" in
-		lua)
-			which lua > /dev/null
+		lua51)
+			which lua5.1 > /dev/null
 			return $?
 			;;
 			
-		luajit)
-			which luajit > /dev/null
+		lua52)
+			which lua5.2 > /dev/null
 			return $?
 			;;
 			
-		luajit2)
+		luajit2-jon)
+			which $LUAJIT2BIN > /dev/null
+			return $?
+			;;
+			
+		luajit2-joff)
 			which $LUAJIT2BIN > /dev/null
 			return $?
 			;;
@@ -71,16 +76,20 @@ validate_engine() {
 
 execute_engine() {
 	case "$1" in
-		lua)
-			exec lua src/lua/run.lua -- "$@"
+		lua51)
+			exec lua5.1 src/lua/run.lua -- "$@"
 			;;
 			
-		luajit)
-			exec luajit -O src/lua/run.lua -- "$@"
+		lua52)
+			exec lua5.2 src/lua/run.lua -- "$@"
 			;;
 			
-		luajit2)
-			exec $LUAJIT2BIN src/lua/run.lua -- "$@"
+		luajit2-jon)
+			exec $LUAJIT2BIN -jon src/lua/run.lua -- "$@"
+			;;
+			
+		luajit2-joff)
+			exec $LUAJIT2BIN -joff src/lua/run.lua -- "$@"
 			;;
 			
 		js)
@@ -170,8 +179,8 @@ done
 
 if [ "$engine" = "" ]; then
 	case "$inputfiles" in
-		*.luac)
-			engine=luajit
+		*.lua)
+			engine=lua51
 			;;
 			
 		*.js)

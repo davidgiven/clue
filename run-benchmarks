@@ -65,7 +65,7 @@ end
 print("", "", "", "time", "comparison factor")
 for i = 1, #benchdata do
 	local name, arg = unpack(benchdata[i])
-	print(name..":")
+	print("\n"..name..":")
 	exec("gcc test/clbg.c test/"..name..".c -o /tmp/benchmark -Os -lm")
 
 	local gcctime = time("/tmp/benchmark "..arg)
@@ -73,9 +73,10 @@ for i = 1, #benchdata do
 
 	benchmark("c", "c", "c", name, gcctime, arg)
 	benchmark("java", "java", "j", name, gcctime, arg)
-	--benchmark("luajit", "lua", "lua", name, gcctime, arg)
-	benchmark("luajit2", "lua", "lua", name, gcctime, arg)
-	benchmark("lua", "lua", "lua", name, gcctime, arg)
+	benchmark("lua51", "lua51", "lua", name, gcctime, arg)
+	benchmark("lua52", "lua52", "lua", name, gcctime, arg)
+	benchmark("luajit2-jon", "lua52", "lua", name, gcctime, arg)
+	benchmark("luajit2-joff", "lua52", "lua", name, gcctime, arg)
 	benchmark("js", "js", "js", name, gcctime, arg)
 	benchmark("perl5", "perl5", "perl5", name, gcctime, arg)
 end

@@ -27,7 +27,7 @@ targets (such as c, which involves compiling the target program with gcc).
 ---snip---
 EOF
 
-./run-benchmarks
+#./run-benchmarks
 
 cat << EOF
 ---snip---
@@ -43,73 +43,30 @@ gcc:
 EOF
 
 gcc -Os test/whetstone.c -o /tmp/benchmark -lm
-/tmp/benchmark
+#/tmp/benchmark
 
-cat << EOF
----snip---
+runbenchmark()
+{
+	cat <<- EOF
+		---snip---
+		
+		$1:
+		
+		---snip---
+	EOF
+	
+	bin/clue -m$2 test/whetstone.c > /tmp/$4
+	./cluerun -e $3 -f /tmp/$4
+}
 
-C via Clue:
-
----snip---
-EOF
-
-bin/clue -mc test/whetstone.c > /tmp/benchmark.c
-./cluerun -e c -f /tmp/benchmark.c
-
-cat << EOF
----snip---
-
-Java:
-
----snip---
-EOF
-
-bin/clue -mjava test/whetstone.c > /tmp/benchmark.j
-./cluerun -e java -f /tmp/benchmark.j
-
-cat << EOF
----snip---
-
-LuaJIT 2:
-
----snip---
-EOF
-
-./bin/clue -mlua test/whetstone.c > /tmp/benchmark.lua
-./cluerun -e luajit2 -f /tmp/benchmark.lua
-
-cat << EOF
----snip---
-
-Lua interpreter:
-
----snip---
-EOF
-
-./bin/clue -mlua test/whetstone.c > /tmp/benchmark.lua
-./cluerun -e lua -f /tmp/benchmark.lua
-
-cat << EOF
----snip---
-
-Node Javascript:
-
---snip---
-EOF
-
-bin/clue -mjs test/whetstone.c > /tmp/benchmark.js
-./cluerun -e js -f /tmp/benchmark.js
-
-cat << EOF
----snip---
-
-Perl 5:
-
----snip---
-EOF
-
-bin/clue -mperl5 test/whetstone.c > /tmp/benchmark.pl
-./cluerun -e perl5 -f /tmp/benchmark.pl
+#runbenchmark "C via Clue" c c benchmark.c
+#runbenchmark "Java" java java benchmark.j
+#runbenchmark "Lua 5.1" lua51 lua51 benchmark.lua
+#runbenchmark "Lua 5.2" lua52 lua52 benchmark.lua
+#runbenchmark "Lua 5.2 luajit2-jon" lua52 luajit2-jon benchmark.lua
+#runbenchmark "Lua 5.2 luajit2-joff" lua52 luajit2-joff benchmark.lua
+#runbenchmark "Node Javascript" js js benchmark.js
+runbenchmark "Perl" perl5 perl5 benchmark.pl
 
 cat << EOF
 ---snip---

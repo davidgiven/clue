@@ -8,8 +8,6 @@
 --
 -- $Id$
 
-require "bit"
-
 local print = print
 local unpack = unpack
 local ipairs = ipairs
@@ -19,16 +17,15 @@ local string_sub = string.sub
 local string_find = string.find
 local string_len = string.len
 local math_floor = math.floor
-local bit_bnot = bit.bnot
-local bit_band = bit.band
-local bit_bor = bit.bor
-local bit_bxor = bit.bxor
-local bit_lshift = bit.lshift
-local bit_rshift = bit.rshift
-local bit_arshift = bit.arshift
+local bit = bit
+local bit32 = bit32
+
+if (not bit) and (not bit32) then
+	bit = require("bit")
+end
 
 local ZERO = string_char(0)
- 
+
 module "clue.crt"
 
 local initializer_list = {}
@@ -90,24 +87,62 @@ end
 
 -- Bit operations.
 
-function shl(v, shift)
-	return bit_lshift(v, shift)
-end
-
-function shr(v, shift)
-	return bit_rshift(v, shift)
-end
-
-function logor(v1, v2)
-	return bit_bor(v1, v2)
-end
-
-function logand(v1, v2)
-	return bit_band(v1, v2)
-end
-
-function logxor(v1, v2)
-	return bit_bxor(v1, v2)
+if bit then
+	local bit_bnot = bit.bnot
+	local bit_band = bit.band
+	local bit_bor = bit.bor
+	local bit_bxor = bit.bxor
+	local bit_lshift = bit.lshift
+	local bit_rshift = bit.rshift
+	local bit_arshift = bit.arshift
+	
+	function shl(v, shift)
+		return bit_lshift(v, shift)
+	end
+	
+	function shr(v, shift)
+		return bit_rshift(v, shift)
+	end
+	
+	function logor(v1, v2)
+		return bit_bor(v1, v2)
+	end
+	
+	function logand(v1, v2)
+		return bit_band(v1, v2)
+	end
+	
+	function logxor(v1, v2)
+		return bit_bxor(v1, v2)
+	end
+else
+	local bit32_bnot = bit32.bnot
+	local bit32_band = bit32.band
+	local bit32_bor = bit32.bor
+	local bit32_bxor = bit32.bxor
+	local bit32_lshift = bit32.lshift
+	local bit32_rshift = bit32.rshift
+	local bit32_arshift = bit32.arshift
+	
+	function shl(v, shift)
+		return bit32_lshift(v, shift)
+	end
+	
+	function shr(v, shift)
+		return bit32_rshift(v, shift)
+	end
+	
+	function logor(v1, v2)
+		return bit32_bor(v1, v2)
+	end
+	
+	function logand(v1, v2)
+		return bit32_band(v1, v2)
+	end
+	
+	function logxor(v1, v2)
+		return bit32_bxor(v1, v2)
+	end
 end
 
 -- Boolean operations.
