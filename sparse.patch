@@ -1,6 +1,6 @@
-diff -urw sparse.orig/compile-i386.c sparse.new/compile-i386.c
---- sparse.orig/compile-i386.c	2008-06-28 22:44:21.000000000 +0100
-+++ sparse.new/compile-i386.c	2008-09-06 22:39:13.979371843 +0100
+diff -urw sparse.orig/compile-i386.c sparse-0.4.1/compile-i386.c
+--- sparse.orig/compile-i386.c	2007-11-13 12:17:49.000000000 +0000
++++ sparse-0.4.1/compile-i386.c	2013-03-10 14:23:54.676014051 +0000
 @@ -2081,7 +2081,7 @@
  		insn("pushl", new, NULL,
  		     !framesize ? "begin function call" : NULL);
@@ -10,9 +10,9 @@ diff -urw sparse.orig/compile-i386.c sparse.new/compile-i386.c
  	} END_FOR_EACH_PTR_REVERSE(arg);
  
  	fn = expr->fn;
-diff -urw sparse.orig/evaluate.c sparse.new/evaluate.c
---- sparse.orig/evaluate.c	2008-06-28 22:44:21.000000000 +0100
-+++ sparse.new/evaluate.c	2008-09-06 22:39:13.979371843 +0100
+diff -urw sparse.orig/evaluate.c sparse-0.4.1/evaluate.c
+--- sparse.orig/evaluate.c	2007-11-13 12:17:49.000000000 +0000
++++ sparse-0.4.1/evaluate.c	2013-03-10 14:23:54.680014051 +0000
 @@ -72,7 +72,7 @@
  	unsigned int length = expr->string->length;
  
@@ -31,7 +31,7 @@ diff -urw sparse.orig/evaluate.c sparse.new/evaluate.c
  	array->ctype.alignment = 1;
  	array->ctype.modifiers = MOD_STATIC;
  	array->ctype.base_type = &char_ctype;
-@@ -579,7 +579,7 @@
+@@ -578,7 +578,7 @@
  	}
  
  	/* Get the size of whatever the pointer points to */
@@ -40,7 +40,7 @@ diff -urw sparse.orig/evaluate.c sparse.new/evaluate.c
  
  	if (ctype == &null_ctype)
  		ctype = &ptr_ctype;
-@@ -831,7 +831,7 @@
+@@ -826,7 +826,7 @@
  		struct expression *sub = alloc_expression(expr->pos, EXPR_BINOP);
  		struct expression *div = expr;
  		struct expression *val = alloc_expression(expr->pos, EXPR_VALUE);
@@ -49,7 +49,7 @@ diff -urw sparse.orig/evaluate.c sparse.new/evaluate.c
  
  		val->ctype = size_t_ctype;
  		val->value = value;
-@@ -1591,7 +1591,7 @@
+@@ -1579,7 +1579,7 @@
  				e3->op = '+';
  				e3->left = e0;
  				e3->right = alloc_const_expression(expr->pos,
@@ -58,7 +58,7 @@ diff -urw sparse.orig/evaluate.c sparse.new/evaluate.c
  				e3->ctype = &lazy_ptr_ctype;
  			} else {
  				e3 = e0;
-@@ -1727,7 +1727,7 @@
+@@ -1717,7 +1717,7 @@
  	} else if (class == TYPE_PTR) {
  		struct symbol *target = examine_pointer_target(ctype);
  		if (!is_function(target))
@@ -67,7 +67,7 @@ diff -urw sparse.orig/evaluate.c sparse.new/evaluate.c
  	}
  
  	if (multiply) {
-@@ -1949,7 +1949,7 @@
+@@ -1938,7 +1938,7 @@
  			expr->base = deref->base;
  			expr->r_bitpos = deref->r_bitpos;
  		}
@@ -76,7 +76,7 @@ diff -urw sparse.orig/evaluate.c sparse.new/evaluate.c
  		expr->type = EXPR_SLICE;
  		expr->r_nrbits = member->bit_size;
  		expr->r_bitpos += member->bit_offset;
-@@ -2037,10 +2037,10 @@
+@@ -2026,10 +2026,10 @@
  		return NULL;
  
  	size = type->bit_size;
@@ -89,7 +89,7 @@ diff -urw sparse.orig/evaluate.c sparse.new/evaluate.c
  	expr->taint = 0;
  	expr->ctype = size_t_ctype;
  	return size_t_ctype;
-@@ -2071,10 +2071,10 @@
+@@ -2060,10 +2060,10 @@
  		return NULL;
  	}
  	size = type->bit_size;
@@ -102,7 +102,7 @@ diff -urw sparse.orig/evaluate.c sparse.new/evaluate.c
  	expr->taint = 0;
  	expr->ctype = size_t_ctype;
  	return size_t_ctype;
-@@ -2158,7 +2158,7 @@
+@@ -2147,7 +2147,7 @@
  	unsigned from = e->idx_from;
  	unsigned to = e->idx_to + 1;
  	e->type = EXPR_POS;
@@ -111,7 +111,7 @@ diff -urw sparse.orig/evaluate.c sparse.new/evaluate.c
  	e->init_nr = to - from;
  	e->init_expr = child;
  }
-@@ -2865,7 +2865,7 @@
+@@ -2852,7 +2852,7 @@
  			unrestrict(idx, i_class, &i_type);
  			idx = cast_to(idx, size_t_ctype);
  			m = alloc_const_expression(expr->pos,
@@ -120,9 +120,10 @@ diff -urw sparse.orig/evaluate.c sparse.new/evaluate.c
  			m->ctype = size_t_ctype;
  			m->flags = Int_const_expr;
  			expr->type = EXPR_BINOP;
-diff -urw sparse.orig/example.c sparse.new/example.c
---- sparse.orig/example.c	2008-06-28 22:44:21.000000000 +0100
-+++ sparse.new/example.c	2008-09-06 22:39:13.979371843 +0100
+Only in sparse-0.4.1: evaluate.c.orig
+diff -urw sparse.orig/example.c sparse-0.4.1/example.c
+--- sparse.orig/example.c	2007-11-13 12:17:49.000000000 +0000
++++ sparse-0.4.1/example.c	2013-03-10 14:23:54.684014051 +0000
 @@ -1830,7 +1830,7 @@
  			in->type = REG_FRAME;
  			in->offset = offset;
@@ -132,9 +133,9 @@ diff -urw sparse.orig/example.c sparse.new/example.c
  		}
  		i++;
  		NEXT_PTR_LIST(argtype);
-diff -urw sparse.orig/expand.c sparse.new/expand.c
---- sparse.orig/expand.c	2008-06-28 22:44:21.000000000 +0100
-+++ sparse.new/expand.c	2008-09-06 22:39:13.983373745 +0100
+diff -urw sparse.orig/expand.c sparse-0.4.1/expand.c
+--- sparse.orig/expand.c	2007-11-13 12:17:49.000000000 +0000
++++ sparse-0.4.1/expand.c	2013-03-10 14:23:54.684014051 +0000
 @@ -880,7 +880,7 @@
  {
  	unsigned long offset = 0;
@@ -144,9 +145,9 @@ diff -urw sparse.orig/expand.c sparse.new/expand.c
  		expr = expr->init_expr;
  	}
  	if (expr && expr->ctype)
-diff -urw sparse.orig/flow.c sparse.new/flow.c
---- sparse.orig/flow.c	2008-06-28 22:44:21.000000000 +0100
-+++ sparse.new/flow.c	2008-09-06 22:39:13.983373745 +0100
+diff -urw sparse.orig/flow.c sparse-0.4.1/flow.c
+--- sparse.orig/flow.c	2007-11-13 12:17:49.000000000 +0000
++++ sparse-0.4.1/flow.c	2013-03-10 14:23:54.684014051 +0000
 @@ -16,6 +16,7 @@
  #include "expression.h"
  #include "linearize.h"
@@ -183,9 +184,9 @@ diff -urw sparse.orig/flow.c sparse.new/flow.c
  	}
  }
  
-diff -urw sparse.orig/linearize.c sparse.new/linearize.c
---- sparse.orig/linearize.c	2008-06-28 22:44:21.000000000 +0100
-+++ sparse.new/linearize.c	2008-09-06 22:39:13.983373745 +0100
+diff -urw sparse.orig/linearize.c sparse-0.4.1/linearize.c
+--- sparse.orig/linearize.c	2007-11-13 12:17:49.000000000 +0000
++++ sparse-0.4.1/linearize.c	2013-03-10 14:23:54.688014051 +0000
 @@ -55,7 +55,9 @@
  
  static struct instruction *alloc_typed_instruction(int opcode, struct symbol *type)
@@ -197,9 +198,9 @@ diff -urw sparse.orig/linearize.c sparse.new/linearize.c
  }
  
  static struct entrypoint *alloc_entrypoint(void)
-diff -urw sparse.orig/linearize.h sparse.new/linearize.h
---- sparse.orig/linearize.h	2008-06-28 22:44:21.000000000 +0100
-+++ sparse.new/linearize.h	2008-09-06 22:39:13.983373745 +0100
+diff -urw sparse.orig/linearize.h sparse-0.4.1/linearize.h
+--- sparse.orig/linearize.h	2007-11-13 12:17:49.000000000 +0000
++++ sparse-0.4.1/linearize.h	2013-03-10 14:23:54.688014051 +0000
 @@ -71,6 +71,7 @@
  		 size:24;
  	struct basic_block *bb;
@@ -208,10 +209,22 @@ diff -urw sparse.orig/linearize.h sparse.new/linearize.h
  	union {
  		pseudo_t target;
  		pseudo_t cond;		/* for branch and switch */
-diff -urw sparse.orig/show-parse.c sparse.new/show-parse.c
---- sparse.orig/show-parse.c	2008-06-28 22:44:21.000000000 +0100
-+++ sparse.new/show-parse.c	2008-09-06 22:39:13.983373745 +0100
-@@ -673,7 +673,7 @@
+diff -urw sparse.orig/parse.h sparse-0.4.1/parse.h
+--- sparse.orig/parse.h	2007-11-13 12:17:49.000000000 +0000
++++ sparse-0.4.1/parse.h	2013-03-10 14:24:16.656014096 +0000
+@@ -60,7 +60,7 @@
+ 		};
+ 		struct /* labeled_struct */ {
+ 			struct symbol *label_identifier;
+-			struct statement *label_statement;
++			/* struct statement *label_statement; */
+ 		};
+ 		struct /* case_struct */ {
+ 			struct expression *case_expression;
+diff -urw sparse.orig/show-parse.c sparse-0.4.1/show-parse.c
+--- sparse.orig/show-parse.c	2007-11-13 12:17:49.000000000 +0000
++++ sparse-0.4.1/show-parse.c	2013-03-10 14:23:54.688014051 +0000
+@@ -667,7 +667,7 @@
  		int new = show_expression(arg);
  		int size = arg->ctype->bit_size;
  		printf("\tpush.%d\t\tv%d\n", size, new);
@@ -220,10 +233,11 @@ diff -urw sparse.orig/show-parse.c sparse.new/show-parse.c
  	} END_FOR_EACH_PTR_REVERSE(arg);
  
  	fn = expr->fn;
-diff -urw sparse.orig/simplify.c sparse.new/simplify.c
---- sparse.orig/simplify.c	2008-06-28 22:44:21.000000000 +0100
-+++ sparse.new/simplify.c	2008-09-06 22:39:36.063369350 +0100
-@@ -692,11 +692,13 @@
+Only in sparse-0.4.1: show-parse.c.orig
+diff -urw sparse.orig/simplify.c sparse-0.4.1/simplify.c
+--- sparse.orig/simplify.c	2007-11-13 12:17:49.000000000 +0000
++++ sparse-0.4.1/simplify.c	2013-03-10 14:23:54.688014051 +0000
+@@ -637,11 +637,13 @@
  		}
  	}
  
@@ -237,9 +251,10 @@ diff -urw sparse.orig/simplify.c sparse.new/simplify.c
  
  	return 0;
  
-diff -urw sparse.orig/symbol.c sparse.new/symbol.c
---- sparse.orig/symbol.c	2008-06-28 22:44:21.000000000 +0100
-+++ sparse.new/symbol.c	2008-09-06 22:39:13.987373428 +0100
+Only in sparse-0.4.1: simplify.c.orig
+diff -urw sparse.orig/symbol.c sparse-0.4.1/symbol.c
+--- sparse.orig/symbol.c	2007-11-13 12:17:49.000000000 +0000
++++ sparse-0.4.1/symbol.c	2013-03-10 14:23:54.692014051 +0000
 @@ -128,7 +128,7 @@
  		base_size = 0;
  	}
@@ -285,9 +300,9 @@ diff -urw sparse.orig/symbol.c sparse.new/symbol.c
  
  		if (alignment > maxalign)
  			alignment = maxalign;
-diff -urw sparse.orig/target.h sparse.new/target.h
---- sparse.orig/target.h	2008-06-28 22:44:21.000000000 +0100
-+++ sparse.new/target.h	2008-09-06 22:39:13.987373428 +0100
+diff -urw sparse.orig/target.h sparse-0.4.1/target.h
+--- sparse.orig/target.h	2007-11-13 12:17:49.000000000 +0000
++++ sparse-0.4.1/target.h	2013-03-10 14:23:54.692014051 +0000
 @@ -42,4 +42,14 @@
  extern int bits_in_enum;
  extern int enum_alignment;
@@ -303,9 +318,9 @@ diff -urw sparse.orig/target.h sparse.new/target.h
 +{ return bytes * bits_in_char; }
 +
  #endif
-diff -urw sparse.orig/tokenize.c sparse.new/tokenize.c
---- sparse.orig/tokenize.c	2008-06-28 22:44:21.000000000 +0100
-+++ sparse.new/tokenize.c	2008-09-06 22:39:13.987373428 +0100
+diff -urw sparse.orig/tokenize.c sparse-0.4.1/tokenize.c
+--- sparse.orig/tokenize.c	2007-11-13 12:17:49.000000000 +0000
++++ sparse-0.4.1/tokenize.c	2013-03-10 14:23:54.692014051 +0000
 @@ -483,7 +483,7 @@
  				int nr = 2;
  				value -= '0';
