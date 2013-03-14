@@ -21,6 +21,7 @@ luajit2-jon:	   0.310	  14.953
 luajit2-joff:	   0.601	  28.999
 js:	   0.863	  41.606
 perl5:	   5.549	 267.512
+
 clbg-mandelbrot:
 gcc:	   0.098	   1.000
 c:	   0.149	   1.514
@@ -31,6 +32,7 @@ luajit2-jon:	   0.376	   3.835
 luajit2-joff:	   3.487	  35.520
 js:	   4.281	  43.610
 perl5:	  42.619	 434.153
+
 clbg-partialsums:
 gcc:	   0.074	   1.000
 c:	   0.073	   0.984
@@ -41,6 +43,7 @@ luajit2-jon:	   0.068	   0.920
 luajit2-joff:	   0.276	   3.721
 js:	   0.650	   8.760
 perl5:	   8.421	 113.482
+
 clbg-fannkuch:
 gcc:	   0.007	   1.000
 c:	   0.007	   0.936
@@ -51,6 +54,7 @@ luajit2-jon:	   0.026	   3.445
 luajit2-joff:	   0.105	  14.002
 js:	   0.108	  14.413
 perl5:	   4.094	 546.405
+
 clbg-recursive:
 gcc:	   0.059	   1.000
 c:	   0.057	   0.961
@@ -61,6 +65,7 @@ luajit2-jon:	   0.259	   4.393
 luajit2-joff:	   0.993	  16.825
 js:	   2.346	  39.757
 perl5:	  22.002	 372.857
+
 clbg-n-body:
 gcc:	   0.035	   1.000
 c:	   0.045	   1.278
@@ -71,6 +76,7 @@ luajit2-jon:	   0.092	   2.596
 luajit2-joff:	   0.549	  15.509
 js:	   0.582	  16.429
 perl5:	   6.486	 183.087
+
 clbg-nsieve:
 gcc:	   0.034	   1.000
 c:	   0.087	   2.548
