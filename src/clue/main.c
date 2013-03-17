@@ -107,7 +107,7 @@ static void init_code_generator(int* argc, const char* argv[])
 	}
 
 	if (!cg)
-		die("Usage: clue [-m[lua|js|perl5|c|lisp|java]] file.c ..");
+		die("Usage: clue [-m[lua51|lua52|js|perl5|c|lisp|java]] file.c ..");
 }
 
 int main(int argc, const char* argv[])
